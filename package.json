@@ -1,0 +1,10 @@
+{
+  "name": "jrl-review-tool",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "serve . -p ${PORT:-3000} -s"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}

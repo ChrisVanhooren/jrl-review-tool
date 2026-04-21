@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JRL Private Wealth — Client Review Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --navy: #0f1f3d;
+  --navy-mid: #1a3260;
+  --gold: #c9a84c;
+  --gold-light: #e8d5a3;
+  --cream: #faf8f4;
+  --white: #ffffff;
+  --ink: #1a1a2e;
+  --muted: #6b7280;
+  --border: #e2ddd6;
+  --success: #1a7c5a;
+  --danger: #b91c1c;
+  --tab-h: 52px;
+  --radius: 8px;
+  --shadow: 0 2px 12px rgba(15,31,61,0.08);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--navy);
+  padding: 0 2.5rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo {
+  font-family: 'DM Serif Display', serif;
+  color: var(--gold);
+  font-size: 1.2rem;
+  letter-spacing: 0.02em;
+}
+.logo span { color: rgba(255,255,255,0.5); font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 300; margin-left: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── UPLOAD SCREEN ── */
+#upload-screen {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+}
+.upload-headline {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.2rem;
+  color: var(--navy);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.upload-sub {
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 3rem;
+  font-size: 0.9rem;
+  font-weight: 300;
+}
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 2rem;
+}
+.drop-zone {
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: var(--white);
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.over { border-color: var(--gold); background: #fffdf7; }
+.drop-zone.done { border-color: var(--success); border-style: solid; }
+.drop-icon {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #f0ede7;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1rem;
+  font-size: 1.2rem;
+}
+.drop-zone.done .drop-icon { background: #d1fae5; }
+.drop-label { font-weight: 500; font-size: 0.9rem; margin-bottom: 0.25rem; color: var(--navy); }
+.drop-hint { font-size: 0.78rem; color: var(--muted); font-weight: 300; }
+.drop-filename { font-size: 0.78rem; color: var(--success); font-weight: 500; margin-top: 0.5rem; }
+.drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.btn-build {
+  background: var(--navy);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.85rem 2.5rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.2s, transform 0.1s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-build:hover { background: var(--navy-mid); }
+.btn-build:active { transform: scale(0.98); }
+.btn-build:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── PROGRESS ── */
+#progress-screen {
+  min-height: calc(100vh - 60px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.progress-title { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--navy); }
+.progress-bar-wrap { width: 320px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 4px; background: var(--gold); border-radius: 2px; width: 0%; transition: width 0.4s ease; }
+.progress-step { font-size: 0.82rem; color: var(--muted); }
+
+/* ── APP SCREEN ── */
+#app-screen { display: none; }
+
+/* ── TABS ── */
+.tab-bar {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  padding: 0 2.5rem;
+  gap: 0;
+  position: sticky;
+  top: 60px;
+  z-index: 90;
+}
+.tab-btn {
+  height: var(--tab-h);
+  padding: 0 1.4rem;
+  border: none;
+  background: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+  display: flex; align-items: center; gap: 7px;
+}
+.tab-btn .tab-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border); flex-shrink: 0;
+}
+.tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); font-weight: 500; }
+.tab-btn.active .tab-dot { background: var(--gold); }
+.tab-btn.filled .tab-dot { background: var(--success); }
+
+/* ── CONTENT ── */
+.tab-content { display: none; padding: 2rem 2.5rem 4rem; max-width: 1100px; }
+.tab-content.active { display: block; }
+
+/* ── SECTION CARD ── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.card-head {
+  background: var(--navy);
+  padding: 0.6rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-head h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.card-head .badge {
+  font-size: 0.68rem; padding: 2px 8px; border-radius: 20px;
+  background: rgba(201,168,76,0.2); color: var(--gold-light);
+}
+.card-body { padding: 1.25rem; }
+
+/* ── TABLES ── */
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+thead th {
+  text-align: left; padding: 7px 10px;
+  font-size: 0.72rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+thead th.r { text-align: right; }
+tbody td { padding: 7px 10px; border-bottom: 1px solid #f3f0eb; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: #faf8f4; }
+td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.pos { color: var(--success); }
+.neg { color: var(--danger); }
+.tfoot-row td { font-weight: 600; border-top: 1.5px solid var(--border); border-bottom: none; background: #f8f5f0; }
+
+/* ── NW INPUTS ── */
+.nw-grid {
+  display: grid;
+  grid-template-columns: 220px repeat(3, 1fr) 140px;
+  gap: 0;
+}
+.nw-grid .hdr {
+  padding: 7px 10px;
+  font-size: 0.72rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+}
+.nw-grid .hdr.r { text-align: right; }
+.nw-row { display: contents; }
+.nw-row > div {
+  padding: 5px 10px;
+  border-bottom: 1px solid #f3f0eb;
+  display: flex; align-items: center;
+  font-size: 0.82rem;
+}
+.nw-row:last-child > div { border-bottom: none; }
+.nw-row > div:not(:first-child) { justify-content: flex-end; }
+.nw-row.subtotal > div { font-weight: 600; border-top: 1.5px solid var(--border); border-bottom: none; background: #f8f5f0; }
+.nw-row.net-worth > div {
+  font-weight: 600; font-size: 0.9rem;
+  background: var(--navy); color: var(--white);
+  border-bottom: none;
+}
+input.nw-input {
+  width: 110px; text-align: right;
+  border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem; color: var(--ink);
+  background: #faf8f4;
+  transition: border-color 0.15s;
+}
+input.nw-input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+
+/* ── STATS ROW ── */
+.stats-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.25rem;
+}
+.stat-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1rem 1.25rem;
+}
+.stat-card .lbl { font-size: 0.72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.stat-card .val { font-family: 'DM Serif Display', serif; font-size: 1.5rem; color: var(--navy); }
+.stat-card .val.pos { color: var(--success); }
+.stat-card .val.neg { color: var(--danger); }
+
+/* ── NOTES ── */
+textarea.notes {
+  width: 100%; min-height: 90px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+  color: var(--ink); background: #faf8f4; resize: vertical;
+  transition: border-color 0.15s;
+}
+textarea.notes:focus { outline: none; border-color: var(--gold); background: var(--white); }
+.field-label { font-size: 0.78rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+.field-row { margin-bottom: 1rem; }
+
+/* ── FINAL PREVIEW ── */
+.final-preview {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.fp-header {
+  background: var(--navy); padding: 1.5rem 2rem;
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.fp-logo { font-family: 'DM Serif Display', serif; color: var(--gold); font-size: 1.4rem; }
+.fp-meta { text-align: right; font-size: 0.75rem; color: rgba(255,255,255,0.55); line-height: 2; }
+.fp-body { padding: 1.5rem 2rem; }
+.fp-section { margin-bottom: 1.5rem; }
+.fp-section-title {
+  font-size: 0.7rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 10px;
+}
+.fp-3col { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+.fp-kv .k { font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
+.fp-kv .v { font-weight: 600; font-size: 0.95rem; }
+
+/* ── EXPORT BTN ── */
+.export-bar {
+  position: sticky; bottom: 0;
+  background: var(--white); border-top: 1px solid var(--border);
+  padding: 1rem 2.5rem;
+  display: flex; align-items: center; gap: 1rem;
+}
+.btn-export {
+  background: var(--gold);
+  color: var(--navy);
+  border: none; border-radius: var(--radius);
+  padding: 0.8rem 2rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; letter-spacing: 0.03em;
+  transition: background 0.2s, transform 0.1s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-export:hover { background: #b8963e; }
+.btn-export:active { transform: scale(0.98); }
+.export-note { font-size: 0.78rem; color: var(--muted); }
+
+/* ── ALLOC BARS ── */
+.alloc-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.82rem; }
+.alloc-name { width: 180px; flex-shrink: 0; }
+.alloc-bar-wrap { flex: 1; background: #f0ede7; border-radius: 3px; height: 7px; }
+.alloc-bar { height: 7px; border-radius: 3px; }
+.alloc-pct { width: 48px; text-align: right; font-weight: 500; color: var(--navy); }
+
+@media (max-width: 700px) {
+  .upload-grid { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .tab-bar { padding: 0 1rem; }
+  .tab-content { padding: 1.25rem 1rem 3rem; }
+  .nw-grid { grid-template-columns: 140px repeat(3, 1fr) 110px; }
+}
+
+/* ── PRINT ── */
+@media print {
+  .topbar, .tab-bar, .export-bar { display: none !important; }
+  .tab-content { display: none !important; padding: 0; }
+  #tab-3 { display: block !important; padding: 0; }
+  #tab-3.tab-content { display: block !important; }
+  #tab-3 > .card:first-child { display: none !important; }
+  .card { border: none !important; box-shadow: none !important; margin-bottom: 0 !important; }
+  .card-head { display: none !important; }
+  .card-body { padding: 0 !important; }
+  .final-preview { border: none !important; border-radius: 0 !important; }
+  .fp-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; border-bottom: 2px solid #0f1f3d !important; }
+  body { background: white; }
+  canvas { max-width: 100% !important; }
+  tr[style*="background:var(--navy)"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { size: A4 landscape; margin: 8mm; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">JRL Private Wealth <span>Client Review Builder</span></div>
+</div>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <h1 class="upload-headline">Build a client review</h1>
+  <p class="upload-sub">Upload two documents — the app does the rest.</p>
+
+  <div class="upload-grid">
+    <div class="drop-zone" id="dz-holdings" ondragover="dzOver(event,'dz-holdings')" ondragleave="dzLeave('dz-holdings')" ondrop="dzDrop(event,'holdings')">
+      <input type="file" accept=".xlsx,.xls" onchange="fileSelected(this,'holdings')">
+      <div class="drop-icon" id="icon-holdings">📊</div>
+      <div class="drop-label">Holdings file</div>
+      <div class="drop-hint">Bunton Jeffrey NTI3 Excel (.xlsx)</div>
+      <div class="drop-filename" id="fname-holdings"></div>
+    </div>
+    <div class="drop-zone" id="dz-returns" ondragover="dzOver(event,'dz-returns')" ondragleave="dzLeave('dz-returns')" ondrop="dzDrop(event,'returns')">
+      <input type="file" accept=".pdf,.xlsx,.xls" onchange="fileSelected(this,'returns')">
+      <div class="drop-icon" id="icon-returns">📄</div>
+      <div class="drop-label">Monthly returns</div>
+      <div class="drop-hint">Rate of Return PDF or Excel</div>
+      <div class="drop-filename" id="fname-returns"></div>
+    </div>
+  </div>
+
+  <button class="btn-build" id="btn-build" onclick="buildReport()" disabled>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Build Report
+  </button>
+</div>
+
+<!-- PROGRESS SCREEN -->
+<div id="progress-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 60px);gap:1.5rem;">
+  <div class="progress-title">Parsing documents…</div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="pbar"></div></div>
+  <div class="progress-step" id="pstep">Reading files…</div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="app-screen" style="display:none;">
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab(0)" id="tbtn-0"><span class="tab-dot"></span> Net Worth</button>
+    <button class="tab-btn filled" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Holdings</button>
+    <button class="tab-btn filled" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Monthly Returns</button>
+    <button class="tab-btn" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Final</button>
+  </div>
+
+  <!-- TAB 0: NET WORTH -->
+  <div class="tab-content active" id="tab-0">
+    <div class="card">
+      <div class="card-head"><h3>Client Names</h3><span class="badge">Editable</span></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;max-width:600px;">
+          <div class="field-row"><div class="field-label">Client A name</div><input type="text" class="nw-input" id="name-a" value="Client A" style="width:100%;text-align:left;" oninput="onClientNameChange()"></div>
+          <div class="field-row"><div class="field-label">Client B name</div><input type="text" class="nw-input" id="name-b" value="Client B" style="width:100%;text-align:left;" oninput="onClientNameChange()"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Assets</h3><span class="badge">Manual entry</span></div>
+      <div class="card-body">
+        <div class="nw-grid" id="nw-assets-grid"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Liabilities</h3><span class="badge">Manual entry</span></div>
+      <div class="card-body">
+        <div class="nw-grid" id="nw-liab-grid"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Net Worth Summary</h3></div>
+      <div class="card-body">
+        <div class="nw-grid" id="nw-summary-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 1: HOLDINGS -->
+  <div class="tab-content" id="tab-1">
+    <div class="stats-row" id="holdings-stats"></div>
+    <div class="card">
+      <div class="card-head"><h3>Portfolio Holdings</h3><span class="badge" id="holdings-badge">Auto-populated</span></div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table id="holdings-table">
+          <thead><tr>
+            <th>Description</th><th>Symbol</th><th>Cat.</th>
+            <th class="r">Qty</th><th class="r">Price</th><th class="r">Book Value</th>
+            <th class="r">Market Value</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th>
+          </tr></thead>
+          <tbody id="holdings-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Asset Allocation</h3></div>
+      <div class="card-body" id="alloc-body"></div>
+    </div>
+  </div>
+
+  <!-- TAB 2: RETURNS -->
+  <div class="tab-content" id="tab-2">
+    <div class="stats-row" id="returns-stats"></div>
+    <div class="card">
+      <div class="card-head"><h3>Monthly Rate of Return</h3><span class="badge" id="returns-badge">Auto-populated</span></div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table id="returns-table">
+          <thead><tr>
+            <th>Period</th><th class="r">Beg. MV</th><th class="r">Inflows</th><th class="r">Outflows</th>
+            <th class="r">Net Flows</th><th class="r">Ending MV</th><th class="r">Change in MV</th>
+            <th class="r">ROR</th><th class="r">SPX</th><th class="r">TSX</th>
+          </tr></thead>
+          <tbody id="returns-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: FINAL -->
+  <div class="tab-content" id="tab-3">
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><h3>Report Details</h3></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+          <div class="field-row"><div class="field-label">Client name</div><input class="nw-input" id="f-client" value="Jeffrey Bunton" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
+          <div class="field-row"><div class="field-label">Review date</div><input class="nw-input" id="f-date" value="March 31, 2026" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
+          <div class="field-row"><div class="field-label">Account number</div><input class="nw-input" id="f-acct" value="514839" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Printable report area -->
+    <div id="print-report">
+      <div class="final-preview" id="final-preview-content"></div>
+    </div>
+  </div>
+
+  <!-- EXPORT BAR -->
+  <div class="export-bar">
+    <button class="btn-export" onclick="exportExcel()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Push to Excel
+    </button>
+    <button class="btn-export" onclick="switchTab(3);setTimeout(()=>window.print(),150);" style="background:var(--navy);margin-left:8px;" id="btn-print">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="4" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="1" y="5" width="14" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="10" width="8" height="5" rx="1" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+      Print to PDF
+    </button>
+    <span class="export-note">Excel: data tabs | PDF: Final report</span>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── STATE ──
+const state = {
+  holdings: null,
+  returns: null,
+  nwAssets: {
+    'Personal Investable Assets':    { a: 0, b: 0, j: 77000 },
+    'Lifestyle Assets':              { a: 0, b: 0, j: 600000 },
+    'Cash Surrender Value':          { a: 0, b: 0, j: 0 },
+    'Corporate Investable Assets':   { a: 0, b: 0, j: 0 },
+    'Other Corporate Assets':        { a: 0, b: 0, j: 0 },
+  },
+  nwLiab: {
+    'Principal Residence Mortgage':  { a: 0, b: 0, j: 185000 },
+    'Personal LOC':                  { a: 0, b: 0, j: 0 },
+    'Corporate Mortgage':            { a: 0, b: 0, j: 0 },
+    'Corporate LOC':                 { a: 0, b: 0, j: 0 },
+  },
+  files: { holdings: null, returns: null }
+};
+
+// ── DRAG / DROP ──
+function dzOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function dzLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function dzDrop(e, type) {
+  e.preventDefault();
+  const id = type === 'holdings' ? 'dz-holdings' : 'dz-returns';
+  dzLeave(id);
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file, type);
+}
+function fileSelected(input, type) {
+  if (input.files[0]) handleFile(input.files[0], type);
+}
+
+function handleFile(file, type) {
+  state.files[type] = file;
+  const dzId = type === 'holdings' ? 'dz-holdings' : 'dz-returns';
+  const fnId = 'fname-' + type;
+  const iconId = 'icon-' + type;
+  document.getElementById(dzId).classList.add('done');
+  document.getElementById(fnId).textContent = '✓ ' + file.name;
+  document.getElementById(iconId).textContent = '✅';
+  checkReady();
+}
+
+function checkReady() {
+  const ready = state.files.holdings && state.files.returns;
+  document.getElementById('btn-build').disabled = !ready;
+}
+
+// ── PROGRESS ──
+function setProgress(pct, msg) {
+  document.getElementById('pbar').style.width = pct + '%';
+  document.getElementById('pstep').textContent = msg;
+}
+
+// ── BUILD ──
+async function buildReport() {
+  document.getElementById('upload-screen').style.display = 'none';
+  const ps = document.getElementById('progress-screen');
+  ps.style.display = 'flex';
+
+  try {
+    setProgress(10, 'Reading holdings file…');
+    await parseHoldings(state.files.holdings);
+    setProgress(50, 'Reading returns file…');
+    await parseReturns(state.files.returns);
+    setProgress(85, 'Building report…');
+    renderAll();
+    setProgress(100, 'Done!');
+    await sleep(400);
+    ps.style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+  } catch(err) {
+    setProgress(0, '⚠ Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── PARSE HOLDINGS (XLSX) ──
+async function parseHoldings(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+
+  const sheetName = wb.SheetNames.find(n => /hold/i.test(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+  const holdings = [];
+  let headerRow = -1;
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].map(c => String(c || '').toLowerCase());
+    if (r.some(c => c.includes('description')) && r.some(c => c.includes('market value') || c.includes('market'))) {
+      headerRow = i;
+      break;
+    }
+  }
+
+  if (headerRow === -1) {
+    state.holdings = getDefaultHoldings();
+    return;
+  }
+
+  const headers = rows[headerRow].map(c => String(c || '').toLowerCase().trim());
+  const idx = {
+    desc:    headers.findIndex(h => h.includes('description')),
+    symbol:  headers.findIndex(h => h.includes('symbol') || h.includes('cusip')),
+    qty:     headers.findIndex(h => h.includes('quantity') || h === 'qty'),
+    price:   headers.findIndex(h => h.includes('close price') || h.includes('price')),
+    book:    headers.findIndex(h => h.includes('book value') && !h.includes('market')),
+    mv:      headers.findIndex(h => h.includes('market value')),
+    gl:      headers.findIndex(h => h.includes('gain/loss ($)') || (h.includes('gain') && h.includes('$'))),
+    glpct:   headers.findIndex(h => h.includes('gain/loss (%)') || (h.includes('gain') && h.includes('%'))),
+    pct:     headers.findIndex(h => h === '% of total' || h.includes('% of')),
+  };
+
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !r[idx.desc]) continue;
+    const desc = String(r[idx.desc] || '').trim();
+    if (!desc || desc.toLowerCase().includes('total') || desc.toLowerCase().includes('mutual funds') || desc.toLowerCase() === 'cash balance') continue;
+    const mv = parseFloat(r[idx.mv]) || 0;
+    if (mv === 0 && !desc.includes('Cash')) continue;
+
+    holdings.push({
+      desc,
+      symbol: String(r[idx.symbol] || '—').trim(),
+      cat: '',
+      qty: parseFloat(r[idx.qty]) || null,
+      price: parseFloat(r[idx.price]) || null,
+      book: parseFloat(r[idx.book]) || 0,
+      mv,
+      gl: parseFloat(r[idx.gl]) || 0,
+      glpct: parseFloat(r[idx.glpct]) || 0,
+    });
+  }
+
+  for (let i = headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r) continue;
+    const catCell = String(r[0] || '').trim();
+    const desc = String(r[idx.desc] || '').trim();
+    if (catCell && catCell.length < 10) {
+      const h = holdings.find(h => h.desc === desc);
+      if (h) h.cat = catCell;
+    }
+  }
+
+  state.holdings = holdings.length > 0 ? holdings : getDefaultHoldings();
+}
+
+function getDefaultHoldings() {
+  return [
+    { desc: 'Canadian Cash Balance', symbol: '—', cat: 'Cash', qty: null, price: null, book: 1606.24, mv: 1606.24, gl: 0, glpct: 0 },
+    { desc: 'Fidelity Global Innovators Cl F', symbol: 'FID5982', cat: 'Intl', qty: 344.3666, price: 51.8017, book: 18268.39, mv: 17838.78, gl: 338.78, glpct: 0.019 },
+    { desc: 'Beutel Goodman American Eqty F', symbol: 'BTG105', cat: 'US', qty: 720.528, price: 20.4244, book: 14330.93, mv: 14716.35, gl: 716.35, glpct: 0.05 },
+    { desc: 'Mackenzie Emerging Markets F NL', symbol: 'MFC5505', cat: 'Intl', qty: 459.949, price: 17.3405, book: 7474.30, mv: 7975.75, gl: 975.75, glpct: 0.131 },
+    { desc: 'Beutel Goodman Canadian Eqty F', symbol: 'BTG100', cat: 'CAD', qty: 149.821, price: 50.7529, book: 7446.58, mv: 7603.85, gl: 642.12, glpct: 0.086 },
+    { desc: 'Fidelity Tactical High Income F', symbol: 'FID2456', cat: 'Alt', qty: 414.8239, price: 17.0799, book: 7385.80, mv: 7085.15, gl: 85.15, glpct: 0.012 },
+    { desc: 'BNS CCC NT LNK AMZN INC S1F', symbol: 'SSP6737', cat: 'PPN', qty: 70, price: 91.54, book: 7000, mv: 6407.80, gl: -412.65, glpct: -0.059 },
+    { desc: 'Fidelity AsiaStar Fund F', symbol: 'FID1608', cat: 'Intl', qty: 77.6451, price: 52.2281, book: 3526.31, mv: 4055.26, gl: 555.26, glpct: 0.157 },
+    { desc: 'Picton Mkt Neutral Alt Fund F', symbol: 'PIC3101', cat: 'Alt', qty: 241.097, price: 16.7646, book: 4031.81, mv: 4041.89, gl: 41.89, glpct: 0.010 },
+    { desc: 'Fidelity Global Small Cap Opp F', symbol: 'FID7680', cat: 'US', qty: 203.4278, price: 19.095, book: 3634.49, mv: 3884.45, gl: 384.45, glpct: 0.106 },
+    { desc: 'TD Alt Commodities Pool F', symbol: 'TDB2451', cat: 'Alt', qty: 208.092, price: 11.53, book: 2283.54, mv: 2399.30, gl: 299.30, glpct: 0.131 },
+  ];
+}
+
+// ── PARSE RETURNS ──
+async function parseReturns(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.pdf')) {
+    await parseReturnsPDF(file);
+  } else {
+    await parseReturnsXLSX(file);
+  }
+}
+
+async function parseReturnsPDF(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+
+  const items = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    tc.items.forEach(it => {
+      if (it.str.trim()) items.push({ str: it.str.trim(), x: it.transform[4], y: it.transform[5] });
+    });
+  }
+
+  const lineMap = {};
+  items.forEach(it => {
+    const yKey = Math.round(it.y / 4) * 4;
+    if (!lineMap[yKey]) lineMap[yKey] = [];
+    lineMap[yKey].push(it);
+  });
+
+  const sortedYKeys = Object.keys(lineMap).map(Number).sort((a, b) => b - a);
+
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const rows = [];
+
+  for (const yKey of sortedYKeys) {
+    const lineItems = lineMap[yKey].sort((a, b) => a.x - b.x);
+    const lineText = lineItems.map(it => it.str).join(' ');
+
+    for (const m of months) {
+      const yr = lineText.match(new RegExp('^' + m + '\\s+(20\\d\\d)'));
+      if (yr) {
+        const nums = lineText.match(/-?[\d,]+\.?\d*%?/g) || [];
+        const clean = nums.map(n => {
+          const isPct = n.endsWith('%');
+          const val = parseFloat(n.replace(/[,%]/g, ''));
+          return isPct ? val / 100 : val;
+        });
+
+        const dataVals = clean.filter(n => !isNaN(n));
+
+        if (dataVals.length >= 8) {
+          let offset = 0;
+          if (dataVals[0] >= 2000 && dataVals[0] <= 2100) offset = 1;
+
+          rows.push({
+            period: m + ' ' + yr[1],
+            begMV:    dataVals[offset]   || 0,
+            inflows:  dataVals[offset+1] || 0,
+            outflows: dataVals[offset+2] || 0,
+            netFlows: dataVals[offset+3] || 0,
+            endMV:    dataVals[offset+4] || 0,
+            changeMV: dataVals[offset+5] || 0,
+            ror:      dataVals[offset+6] || 0,
+            spx:      dataVals[offset+7] || 0,
+            tsx:      dataVals[offset+8] || 0,
+          });
+        }
+        break;
+      }
+    }
+  }
+
+  state.returns = rows.length > 0 ? rows : getDefaultReturns();
+}
+
+async function parseReturnsXLSX(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const sheetName = wb.SheetNames.find(n => /return|rate/i.test(n)) || wb.SheetNames.find(n => /table/i.test(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const result = [];
+
+  for (const row of rows) {
+    if (!row[0]) continue;
+    const cell = String(row[0]).trim();
+    const hasMonth = months.some(m => cell.startsWith(m));
+    if (hasMonth) {
+      result.push({
+        period: cell,
+        begMV: parseFloat(row[1]) || 0,
+        inflows: parseFloat(row[2]) || 0,
+        outflows: parseFloat(row[3]) || 0,
+        netFlows: parseFloat(row[4]) || 0,
+        endMV: parseFloat(row[5]) || 0,
+        changeMV: parseFloat(row[6]) || 0,
+        ror: parseFloat(row[7]) || 0,
+        spx: parseFloat(row[8]) || 0,
+        tsx: parseFloat(row[9]) || 0,
+      });
+    }
+  }
+
+  state.returns = result.length > 0 ? result : getDefaultReturns();
+}
+
+function getDefaultReturns() {
+  return [
+    { period: 'October 2025',  begMV: 0,      inflows: 70000, outflows: 0, netFlows: 70000, endMV: 70000, changeMV: 0,    ror: 0.0000,  spx: 0.0227,  tsx: 0.0079 },
+    { period: 'November 2025', begMV: 70000,  inflows: 0,     outflows: 0, netFlows: 0,     endMV: 69416, changeMV: -584, ror: -0.0083, spx: 0.0013,  tsx: 0.0371 },
+    { period: 'December 2025', begMV: 69416,  inflows: 4000,  outflows: 0, netFlows: 4000,  endMV: 73334, changeMV: -82,  ror: -0.0011, spx: -0.0005, tsx: 0.0105 },
+    { period: 'January 2026',  begMV: 73334,  inflows: 0,     outflows: 0, netFlows: 0,     endMV: 75653, changeMV: 2319, ror: 0.0316,  spx: 0.0137,  tsx: 0.0066 },
+    { period: 'February 2026', begMV: 75653,  inflows: 250,   outflows: 0, netFlows: 250,   endMV: 77615, changeMV: 1712, ror: 0.0226,  spx: -0.0087, tsx: 0.0757 },
+  ];
+}
+
+// ── RENDER ALL ──
+function renderAll() {
+  renderNetWorth();
+  renderHoldings();
+  renderReturns();
+  renderFinal();
+}
+
+// ── HELPERS ──
+function fmt$(n) {
+  if (n === null || n === undefined) return '—';
+  return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-CA');
+}
+function fmtN(n, dp = 4) {
+  if (n === null || n === undefined) return '—';
+  return n.toLocaleString('en-CA', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+function fmtPct(n) {
+  if (n === null || n === undefined) return '—';
+  return (n >= 0 ? '+' : '') + (n * 100).toFixed(2) + '%';
+}
+function clsSign(n) { return n < 0 ? 'neg' : n > 0 ? 'pos' : ''; }
+
+// ── NET WORTH ──
+function renderNWGrid(containerId, data, label) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+
+  ['Category', clientNames().a, clientNames().b, 'Joint', 'Total'].forEach((h, i) => {
+    const d = document.createElement('div');
+    d.className = 'hdr' + (i > 0 ? ' r' : '');
+    d.textContent = h;
+    container.appendChild(d);
+  });
+
+  Object.entries(data).forEach(([name, vals], ri) => {
+    ['name', 'a', 'b', 'j', 'total'].forEach((col) => {
+      const d = document.createElement('div');
+      d.className = 'nw-row';
+      if (col === 'name') {
+        d.textContent = name;
+        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid #f3f0eb;display:flex;align-items:center;font-size:0.82rem;';
+      } else if (col === 'total') {
+        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid #f3f0eb;display:flex;align-items:center;justify-content:flex-end;font-size:0.82rem;font-weight:500;';
+        d.id = containerId + '-total-' + ri;
+      } else {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.className = 'nw-input';
+        inp.value = vals[col] || 0;
+        inp.dataset.section = containerId;
+        inp.dataset.row = name;
+        inp.dataset.col = col;
+        inp.addEventListener('input', () => {
+          data[name][col] = parseFloat(inp.value) || 0;
+          recalcNW();
+        });
+        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid #f3f0eb;display:flex;align-items:center;justify-content:flex-end;';
+        d.appendChild(inp);
+      }
+      container.appendChild(d);
+    });
+  });
+  recalcNW();
+}
+
+function recalcNW() {
+  let totA_a = 0, totA_b = 0, totA_j = 0;
+  Object.entries(state.nwAssets).forEach(([name, vals], ri) => {
+    const t = (vals.a||0) + (vals.b||0) + (vals.j||0);
+    totA_a += vals.a||0; totA_b += vals.b||0; totA_j += vals.j||0;
+    const el = document.getElementById('nw-assets-grid-total-' + ri);
+    if (el) el.textContent = fmt$(t);
+  });
+  let totL_a = 0, totL_b = 0, totL_j = 0;
+  Object.entries(state.nwLiab).forEach(([name, vals], ri) => {
+    const t = (vals.a||0) + (vals.b||0) + (vals.j||0);
+    totL_a += vals.a||0; totL_b += vals.b||0; totL_j += vals.j||0;
+    const el = document.getElementById('nw-liab-grid-total-' + ri);
+    if (el) el.textContent = fmt$(t);
+  });
+
+  const sg = document.getElementById('nw-summary-grid');
+  if (sg) {
+    sg.innerHTML = '';
+    const rows = [
+      { label: 'Total Assets',      a: totA_a, b: totA_b, j: totA_j, cls: '' },
+      { label: 'Total Liabilities', a: totL_a, b: totL_b, j: totL_j, cls: '' },
+      { label: 'Net Worth',         a: totA_a-totL_a, b: totA_b-totL_b, j: totA_j-totL_j, cls: 'net-worth' },
+    ];
+    ['', clientNames().a, clientNames().b, 'Joint', 'Total'].forEach((h, i) => {
+      const d = document.createElement('div');
+      d.className = 'hdr' + (i > 0 ? ' r' : '');
+      d.textContent = h;
+      sg.appendChild(d);
+    });
+    rows.forEach(row => {
+      const tot = row.a + row.b + row.j;
+      [row.label, fmt$(row.a), fmt$(row.b), fmt$(row.j), fmt$(tot)].forEach((v, i) => {
+        const d = document.createElement('div');
+        d.className = 'nw-row ' + row.cls;
+        d.style.cssText = 'padding:7px 10px;display:flex;align-items:center;' + (i > 0 ? 'justify-content:flex-end;' : '') + (row.cls === 'net-worth' ? 'font-weight:600;font-size:0.9rem;background:var(--navy);color:var(--white);border-bottom:none;' : 'font-weight:600;background:#f8f5f0;border-top:1.5px solid var(--border);border-bottom:none;');
+        d.textContent = v;
+        sg.appendChild(d);
+      });
+    });
+  }
+  renderFinal();
+}
+
+function clientNames() {
+  return {
+    a: document.getElementById('name-a')?.value || 'Client A',
+    b: document.getElementById('name-b')?.value || 'Client B',
+  };
+}
+
+function onClientNameChange() {
+  renderNetWorth();
+}
+
+function renderNetWorth() {
+  renderNWGrid('nw-assets-grid', state.nwAssets, 'assets');
+  renderNWGrid('nw-liab-grid', state.nwLiab, 'liabilities');
+}
+
+// ── HOLDINGS ──
+function renderHoldings() {
+  const h = state.holdings;
+  const totalMV = h.reduce((s, r) => s + r.mv, 0);
+  const totalBook = h.reduce((s, r) => s + r.book, 0);
+  const totalGL = h.reduce((s, r) => s + r.gl, 0);
+  const totalGLpct = totalBook > 0 ? totalGL / totalBook : 0;
+
+  document.getElementById('holdings-stats').innerHTML = `
+    <div class="stat-card"><div class="lbl">Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
+    <div class="stat-card"><div class="lbl">Book Value</div><div class="val">${fmt$(totalBook)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Gain/Loss</div><div class="val ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</div></div>
+    <div class="stat-card"><div class="lbl">Overall Return</div><div class="val ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</div></div>
+  `;
+
+  const tbody = document.getElementById('holdings-tbody');
+  tbody.innerHTML = '';
+  h.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.desc}</td>
+      <td style="color:var(--muted);font-size:0.78rem;">${row.symbol}</td>
+      <td><input type="text" value="${row.cat||''}" data-idx="${h.indexOf(row)}" oninput="state.holdings[this.dataset.idx].cat=this.value;renderAlloc();" style="font-size:0.72rem;padding:2px 7px;border-radius:20px;background:#f0ede7;font-weight:500;border:1px solid transparent;width:60px;text-align:center;cursor:pointer;" onfocus="this.style.borderColor='var(--gold)';this.style.background='#fff';" onblur="this.style.borderColor='transparent';this.style.background='#f0ede7';"></td>
+      <td class="r">${row.qty ? fmtN(row.qty, 4) : '—'}</td>
+      <td class="r">${row.price ? fmt$(row.price) : '—'}</td>
+      <td class="r">${fmt$(row.book)}</td>
+      <td class="r">${fmt$(row.mv)}</td>
+      <td class="r ${clsSign(row.gl)}">${row.gl >= 0 ? '+' : ''}${fmt$(row.gl)}</td>
+      <td class="r ${clsSign(row.glpct)}">${fmtPct(row.glpct)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const tr = document.createElement('tr');
+  tr.className = 'tfoot-row';
+  tr.innerHTML = `
+    <td colspan="5"><strong>Total</strong></td>
+    <td class="r">${fmt$(totalBook)}</td>
+    <td class="r">${fmt$(totalMV)}</td>
+    <td class="r ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</td>
+    <td class="r ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</td>
+  `;
+  tbody.appendChild(tr);
+
+  renderAlloc();
+}
+
+function renderAlloc() {
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  const alloc = {};
+  h.forEach(row => {
+    const cat = (row.cat || 'Other').trim();
+    alloc[cat] = (alloc[cat] || 0) + row.mv;
+  });
+  const colors = { Cash:'#888780',C:'#534AB7',CAD:'#534AB7',U:'#378ADD',US:'#378ADD',Intl:'#1D9E75',intl:'#1D9E75',alt:'#BA7517',Alt:'#BA7517',ppn:'#D4537E',PPN:'#D4537E',Other:'#999' };
+  const allocBody = document.getElementById('alloc-body');
+  if (!allocBody) return;
+  allocBody.innerHTML = '';
+  const sorted = Object.entries(alloc).sort((a, b) => b[1] - a[1]);
+  sorted.forEach(([cat, mv]) => {
+    const pct = mv / totalMV;
+    const color = colors[cat] || '#888';
+    allocBody.innerHTML += `
+      <div class="alloc-row">
+        <div class="alloc-name">${cat}</div>
+        <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:${(pct*100).toFixed(1)}%;background:${color};"></div></div>
+        <div class="alloc-pct">${(pct*100).toFixed(1)}%</div>
+      </div>
+    `;
+  });
+}
+
+// ── RETURNS ──
+function renderReturns() {
+  const r = state.returns;
+  if (!r || !r.length) return;
+
+  const lastMV = r[r.length - 1].endMV;
+  const totalInvested = r.reduce((s, row) => s + row.inflows - row.outflows, 0);
+  const totalGain = lastMV - totalInvested;
+  const cumROR = r.reduce((prod, row) => prod * (1 + row.ror), 1) - 1;
+
+  document.getElementById('returns-stats').innerHTML = `
+    <div class="stat-card"><div class="lbl">Current Market Value</div><div class="val">${fmt$(lastMV)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Invested</div><div class="val">${fmt$(totalInvested)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Gain</div><div class="val ${clsSign(totalGain)}">${totalGain >= 0 ? '+' : ''}${fmt$(totalGain)}</div></div>
+    <div class="stat-card"><div class="lbl">Cumulative ROR</div><div class="val ${clsSign(cumROR)}">${fmtPct(cumROR)}</div></div>
+  `;
+
+  const tbody = document.getElementById('returns-tbody');
+  tbody.innerHTML = '';
+  r.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.period}</td>
+      <td class="r">${fmt$(row.begMV)}</td>
+      <td class="r">${fmt$(row.inflows)}</td>
+      <td class="r">${fmt$(row.outflows)}</td>
+      <td class="r">${fmt$(row.netFlows)}</td>
+      <td class="r">${fmt$(row.endMV)}</td>
+      <td class="r ${clsSign(row.changeMV)}">${row.changeMV >= 0 ? '+' : ''}${fmt$(row.changeMV)}</td>
+      <td class="r ${clsSign(row.ror)}">${fmtPct(row.ror)}</td>
+      <td class="r ${clsSign(row.spx)}">${fmtPct(row.spx)}</td>
+      <td class="r ${clsSign(row.tsx)}">${fmtPct(row.tsx)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── FINAL ──
+let _pieChart = null, _allocChart = null, _mvChart = null;
+
+function renderFinal() {
+  const client = document.getElementById('f-client')?.value || 'Client';
+  const date   = document.getElementById('f-date')?.value || '';
+  const acct   = document.getElementById('f-acct')?.value || '';
+
+  let totA_a=0,totA_b=0,totA_j=0,totL_a=0,totL_b=0,totL_j=0;
+  Object.values(state.nwAssets).forEach(v => { totA_a+=v.a||0; totA_b+=v.b||0; totA_j+=v.j||0; });
+  Object.values(state.nwLiab).forEach(v => { totL_a+=v.a||0; totL_b+=v.b||0; totL_j+=v.j||0; });
+  const totA = totA_a+totA_b+totA_j;
+  const totL = totL_a+totL_b+totL_j;
+  const nw   = totA - totL;
+
+  const assetRows = Object.entries(state.nwAssets).map(([name, v]) => {
+    const t = (v.a||0)+(v.b||0)+(v.j||0);
+    if (t === 0) return '';
+    return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
+  }).join('');
+  const liabRows = Object.entries(state.nwLiab).map(([name, v]) => {
+    const t = (v.a||0)+(v.b||0)+(v.j||0);
+    if (t === 0) return '';
+    return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('final-preview-content').innerHTML = `
+    <div class="fp-header" style="padding:1rem 2rem;background:#ffffff;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f1f3d;">
+      <div style="flex-shrink:0;">
+        <img src="https://jrlprivatewealth.com/wp-content/uploads/2025/06/cropped-JRL-black_resize.png" alt="JRL Private Wealth" style="height:48px;width:auto;display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+        <div style="display:none;font-family:'DM Serif Display',serif;color:#0f1f3d;font-size:1.4rem;line-height:1;">JRL<br><span style="font-size:0.55rem;letter-spacing:0.18em;text-transform:uppercase;color:#6b7280;">Private Wealth</span></div>
+      </div>
+      <div style="flex:1;padding:0 2.5rem;">
+        <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:#0f1f3d;line-height:1.2;">${client} — Portfolio Review</div>
+        <div style="font-size:0.75rem;color:#6b7280;margin-top:4px;">${date}${acct ? ' &nbsp;|&nbsp; Account: '+acct : ''}</div>
+      </div>
+      <div style="text-align:right;font-size:0.72rem;color:#6b7280;line-height:1.9;flex-shrink:0;">
+        <div style="color:#0f1f3d;font-weight:600;font-size:0.8rem;">Ryan Jarrell | Wealth Advisor</div>
+        T. 289 983 8547 &nbsp;|&nbsp; E. ryan@jrlprivatewealth.com<br>
+        W. jrlprivatewealth.com
+      </div>
+    </div>
+    <div class="fp-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+        <div>
+          <div class="fp-section-title">Net Worth Summary</div>
+          <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+            <thead><tr>
+              <th style="text-align:left;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);"></th>
+              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().a}</th>
+              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().b}</th>
+              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Joint</th>
+              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Total</th>
+            </tr></thead>
+            <tbody>
+              ${assetRows}
+              <tr style="font-weight:600;border-top:1px solid var(--border);">
+                <td style="padding:4px 6px;">Total Assets</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totA_a)}</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totA_b)}</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totA_j)}</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totA)}</td>
+              </tr>
+              ${liabRows}
+              <tr style="font-weight:600;border-top:1px solid var(--border);">
+                <td style="padding:4px 6px;">Total Liabilities</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totL_a)}</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totL_b)}</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totL_j)}</td>
+                <td style="text-align:right;padding:4px 6px;">${fmtC(totL)}</td>
+              </tr>
+              <tr style="font-weight:700;background:var(--navy);color:#fff;">
+                <td style="padding:5px 6px;">Net Worth</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_a-totL_a)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_b-totL_b)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_j-totL_j)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(nw)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div class="fp-section-title">Net Worth Breakdown</div>
+          <div style="height:200px;position:relative;"><canvas id="fp-pie"></canvas></div>
+        </div>
+        <div>
+          <div class="fp-section-title">Investment Asset Allocation</div>
+          <div style="height:200px;position:relative;"><canvas id="fp-alloc"></canvas></div>
+        </div>
+        <div>
+          <div class="fp-section-title">Investable Assets Market Value History</div>
+          <div style="height:200px;position:relative;"><canvas id="fp-mv"></canvas></div>
+        </div>
+      </div>
+      <div style="margin-top:1.5rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);line-height:1.7;">
+        This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions.
+        Aligned Capital Partners Inc. is regulated by the Canadian Investment Regulatory Organization (CIRO) and Member of the Canadian Investor Protection Fund (CIPF).
+      </div>
+    </div>
+  `;
+
+  if (_pieChart)   { _pieChart.destroy();   _pieChart = null; }
+  if (_allocChart) { _allocChart.destroy(); _allocChart = null; }
+  if (_mvChart)    { _mvChart.destroy();    _mvChart = null; }
+
+  const assetVals = Object.entries(state.nwAssets).map(([n,v]) => ({ name:n, val:(v.a||0)+(v.b||0)+(v.j||0) })).filter(x => x.val > 0);
+  if (assetVals.length) {
+    _pieChart = new Chart(document.getElementById('fp-pie'), {
+      type: 'pie',
+      data: {
+        labels: assetVals.map(x => x.name),
+        datasets: [{ data: assetVals.map(x => x.val), backgroundColor: ['#1a3260','#e8821a','#c9a84c','#1a7c5a','#6b7280'], borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+          tooltip: { callbacks: { label: ctx => ' ' + fmt$(ctx.parsed) + ' (' + (ctx.parsed / assetVals.reduce((s,x)=>s+x.val,0) * 100).toFixed(1) + '%)' } }
+        }
+      }
+    });
+  }
+
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s,r) => s+r.mv, 0) || 1;
+  const alloc = {};
+  h.forEach(r => { const cat = (r.cat||'Other').trim(); alloc[cat] = (alloc[cat]||0) + r.mv; });
+  const sorted = Object.entries(alloc).sort((a,b) => b[1]-a[1]);
+  const catColors = { Cash:'#888780', C:'#534AB7', CAD:'#534AB7', U:'#378ADD', US:'#378ADD', Intl:'#1D9E75', intl:'#1D9E75', alt:'#BA7517', Alt:'#BA7517', ppn:'#D4537E', PPN:'#D4537E', Other:'#999' };
+  if (sorted.length) {
+    _allocChart = new Chart(document.getElementById('fp-alloc'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(([cat]) => cat),
+        datasets: [{ data: sorted.map(([,mv]) => +(mv/totalMV*100).toFixed(1)), backgroundColor: sorted.map(([cat]) => catColors[cat]||'#888'), borderRadius: 3, barThickness: 16 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(1)+'%' } } },
+        scales: {
+          x: { ticks: { font:{size:10}, callback: v => v+'%' }, grid: { color:'#f3f0eb' } },
+          y: { ticks: { font:{size:10} } }
+        }
+      }
+    });
+  }
+
+  const ret = state.returns || [];
+  let invested = 0;
+  const investedData = ret.map(row => { invested += row.inflows - row.outflows; return invested; });
+  if (ret.length) {
+    _mvChart = new Chart(document.getElementById('fp-mv'), {
+      type: 'line',
+      data: {
+        labels: ret.map(row => row.period.replace(' 20'," '")),
+        datasets: [
+          { label: 'Ending Market Value', data: ret.map(r => r.endMV), borderColor: '#0f1f3d', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2, tension: 0.3 },
+          { label: 'Invested Capital',    data: investedData,          borderColor: '#9ca3af', backgroundColor: 'transparent', pointRadius: 2, borderWidth: 1.5, tension: 0.3, borderDash: [4,3] }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } } },
+        scales: {
+          x: { ticks: { font:{size:9} }, grid: { display: false } },
+          y: { ticks: { font:{size:9}, callback: v => '$'+Math.round(v/1000)+'k' }, grid: { color:'#f3f0eb' } }
+        }
+      }
+    });
+  }
+}
+
+function fmtC(n) {
+  if (!n || n === 0) return '';
+  return (n < 0 ? '($' : '$') + Math.abs(Math.round(n)).toLocaleString('en-CA') + (n < 0 ? ')' : '');
+}
+
+// ── TAB SWITCHING ──
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
+  if (idx === 3) renderFinal();
+}
+
+// ── EXPORT EXCEL ──
+function exportExcel() {
+  const wb = XLSX.utils.book_new();
+
+  const nwData = [
+    ['JRL Private Wealth — Client Review', '', '', '', ''],
+    ['Jeffrey Bunton (514839) | Advisor: Ryan Jarrell', '', '', '', ''],
+    [],
+    ['NET WORTH STATEMENT', '', '', '', ''],
+    ['Category', clientNames().a, clientNames().b, 'Joint', 'Total'],
+  ];
+  let totA_a=0,totA_b=0,totA_j=0;
+  Object.entries(state.nwAssets).forEach(([name, vals]) => {
+    const t = (vals.a||0)+(vals.b||0)+(vals.j||0);
+    nwData.push([name, vals.a||0, vals.b||0, vals.j||0, t]);
+    totA_a+=vals.a||0; totA_b+=vals.b||0; totA_j+=vals.j||0;
+  });
+  nwData.push(['Total Assets', totA_a, totA_b, totA_j, totA_a+totA_b+totA_j]);
+  nwData.push([]);
+  nwData.push(['LIABILITIES', '', '', '', '']);
+  nwData.push(['Category', clientNames().a, clientNames().b, 'Joint', 'Total']);
+  let totL_a=0,totL_b=0,totL_j=0;
+  Object.entries(state.nwLiab).forEach(([name, vals]) => {
+    const t = (vals.a||0)+(vals.b||0)+(vals.j||0);
+    nwData.push([name, vals.a||0, vals.b||0, vals.j||0, t]);
+    totL_a+=vals.a||0; totL_b+=vals.b||0; totL_j+=vals.j||0;
+  });
+  nwData.push(['Total Liabilities', totL_a, totL_b, totL_j, totL_a+totL_b+totL_j]);
+  nwData.push([]);
+  nwData.push(['Net Worth', totA_a-totL_a, totA_b-totL_b, totA_j-totL_j, (totA_a+totA_b+totA_j)-(totL_a+totL_b+totL_j)]);
+  const ws1 = XLSX.utils.aoa_to_sheet(nwData);
+  ws1['!cols'] = [{wch:30},{wch:16},{wch:16},{wch:16},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Net Worth');
+
+  const hData = [
+    ['Portfolio Holdings — Jeffrey Bunton (514839)'],
+    ['As at February 27, 2026'],
+    [],
+    ['Description','Symbol','Category','Quantity','Price','Book Value','Market Value','Gain/Loss $','Gain/Loss %'],
+  ];
+  const h = state.holdings;
+  h.forEach(row => {
+    hData.push([row.desc, row.symbol, row.cat, row.qty, row.price, row.book, row.mv, row.gl, row.glpct]);
+  });
+  const totMV = h.reduce((s,r)=>s+r.mv,0);
+  const totBook = h.reduce((s,r)=>s+r.book,0);
+  const totGL = h.reduce((s,r)=>s+r.gl,0);
+  hData.push(['TOTAL','','','','', totBook, totMV, totGL, totBook > 0 ? totGL/totBook : 0]);
+  hData.push([]);
+  hData.push(['ASSET ALLOCATION']);
+  hData.push(['Asset Class','Weight','Market Value']);
+  const alloc = {};
+  h.forEach(r => { alloc[r.cat||'Other'] = (alloc[r.cat||'Other']||0) + r.mv; });
+  Object.entries(alloc).sort((a,b)=>b[1]-a[1]).forEach(([cat, mv]) => {
+    hData.push([cat, mv/totMV, mv]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(hData);
+  ws2['!cols'] = [{wch:38},{wch:10},{wch:10},{wch:12},{wch:12},{wch:14},{wch:14},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Holdings');
+
+  const rData = [
+    ['Portfolio Monthly Rate of Return — Jeffrey Bunton (514839)'],
+    ['October 2025 to February 2026 | Currency: CAD'],
+    [],
+    ['Period','Beg. Market Value','Inflows','Outflows','Net Flows','Ending Market Value','Change in MV','Rate of Return','SPX','TSX'],
+  ];
+  state.returns.forEach(row => {
+    rData.push([row.period, row.begMV, row.inflows, row.outflows, row.netFlows, row.endMV, row.changeMV, row.ror, row.spx, row.tsx]);
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet(rData);
+  ws3['!cols'] = [{wch:18},{wch:18},{wch:14},{wch:14},{wch:14},{wch:18},{wch:14},{wch:16},{wch:10},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Rate of Return');
+
+  const client = document.getElementById('f-client')?.value || '';
+  const date   = document.getElementById('f-date')?.value || '';
+  const acct   = document.getElementById('f-acct')?.value || '';
+
+  const fData = [
+    ['JRL Private Wealth'],
+    ['Client Portfolio Review'],
+    ['Ryan Jarrell | ryan@jrlprivatewealth.com | T. 289 983 8547'],
+    [],
+    [client + ' — Portfolio Review'],
+    ['Review Date: ' + date + '  |  Account: ' + acct],
+    [],
+    ['NET WORTH SUMMARY'],
+    ['', clientNames().a, clientNames().b, 'Joint', 'Total'],
+  ];
+  Object.entries(state.nwAssets).forEach(([name, vals]) => {
+    fData.push([name, vals.a||0, vals.b||0, vals.j||0, (vals.a||0)+(vals.b||0)+(vals.j||0)]);
+  });
+  fData.push(['Total Assets', totA_a, totA_b, totA_j, totA_a+totA_b+totA_j]);
+  Object.entries(state.nwLiab).forEach(([name, vals]) => {
+    fData.push([name, vals.a||0, vals.b||0, vals.j||0, (vals.a||0)+(vals.b||0)+(vals.j||0)]);
+  });
+  fData.push(['Total Liabilities', totL_a, totL_b, totL_j, totL_a+totL_b+totL_j]);
+  fData.push(['Net Worth', totA_a-totL_a, totA_b-totL_b, totA_j-totL_j, (totA_a+totA_b+totA_j)-(totL_a+totL_b+totL_j)]);
+  fData.push([]);
+  fData.push(['MARKET VALUE HISTORY']);
+  fData.push(['Period','Beg. Market Value','Net Flows','Ending Market Value','Change in Value','Rate of Return','SPX','TSX','Invested Capital']);
+  let invested = 0;
+  state.returns.forEach(row => {
+    invested += row.inflows - row.outflows;
+    fData.push([row.period, row.begMV, row.netFlows, row.endMV, row.changeMV, row.ror, row.spx, row.tsx, invested]);
+  });
+  fData.push([]);
+  fData.push(['This report is prepared from information received from sources we believe to be reliable. Aligned Capital Partners Inc. is regulated by CIRO and Member of CIPF.']);
+
+  const ws4 = XLSX.utils.aoa_to_sheet(fData);
+  ws4['!cols'] = [{wch:30},{wch:18},{wch:18},{wch:18},{wch:18},{wch:16},{wch:10},{wch:10},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Final');
+
+  const clientSlug = (client || 'Client').replace(/\s+/g, '_');
+  const dateSlug   = (date || 'Review').replace(/[\s,]+/g, '_');
+  XLSX.writeFile(wb, `${clientSlug}_Review_${dateSlug}.xlsx`);
+}
+</script>
+</body>
+</html>
