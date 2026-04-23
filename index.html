@@ -366,7 +366,7 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
   .tab-content { display: none !important; padding: 0; }
   #tab-3 { display: block !important; padding: 0; }
   #tab-3.tab-content { display: block !important; }
-  #tab-3 > .card:first-child { display: none !important; }
+  #tab-3 > .card { display: none !important; }
   .card { border: none !important; box-shadow: none !important; margin-bottom: 0 !important; }
   .card-head { display: none !important; }
   .card-body { padding: 0 !important; }
@@ -375,8 +375,9 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
   body { background: white; }
   canvas { max-width: 100% !important; }
   tr[style*="background:var(--navy)"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: A4 landscape; margin: 5mm; }
   .sidebar { display: none !important; }
+  #print-report { zoom: 0.62; }
 }
 
 /* ── LAYOUT ── */
@@ -650,6 +651,27 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
         </div>
       </div>
     </div>
+    <!-- Chart Options -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><h3>MV History Chart Options</h3><span class="badge">Axis &amp; Display</span></div>
+      <div class="card-body">
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-end;">
+          <div class="field-row" style="margin-bottom:0;">
+            <div class="field-label">Y-Axis Min ($)</div>
+            <input class="nw-input" id="chart-ymin" placeholder="auto" style="width:130px;text-align:left;" oninput="state.chartOpts.mvYMin=this.value;renderFinal()">
+          </div>
+          <div class="field-row" style="margin-bottom:0;">
+            <div class="field-label">Y-Axis Max ($)</div>
+            <input class="nw-input" id="chart-ymax" placeholder="auto" style="width:130px;text-align:left;" oninput="state.chartOpts.mvYMax=this.value;renderFinal()">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding-bottom:2px;">
+            <input type="checkbox" id="chart-show-invested" checked onchange="state.chartOpts.showInvested=this.checked;renderFinal()" style="cursor:pointer;width:15px;height:15px;">
+            <label for="chart-show-invested" style="font-size:0.82rem;cursor:pointer;">Show Invested Capital line</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Advisor Notes -->
     <div class="card" style="margin-bottom:1rem;">
       <div class="card-head"><h3>Advisor Notes</h3><span class="badge">Appears on report</span></div>
@@ -670,7 +692,7 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Push to Excel
     </button>
-    <button class="btn-export" onclick="switchTab(3);setTimeout(()=>window.print(),150);" style="background:var(--navy);margin-left:8px;" id="btn-print">
+    <button class="btn-export" onclick="switchTab(3);setTimeout(()=>window.print(),500);" style="background:var(--navy);margin-left:8px;" id="btn-print">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="4" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="1" y="5" width="14" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="10" width="8" height="5" rx="1" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
       Print to PDF
     </button>
@@ -705,6 +727,7 @@ const state = {
   },
   files: { holdings: null, returns: null },
   notes: '',
+  chartOpts: { mvYMin: '', mvYMax: '', showInvested: true },
 };
 
 // ── DRAG / DROP ──
@@ -1512,6 +1535,7 @@ function renderFinal() {
         datasets: [{ data: assetVals.map(x => x.val), backgroundColor: ['#1a3260','#e8821a','#c9a84c','#1a7c5a','#6b7280'], borderWidth: 2, borderColor: '#fff' }]
       },
       options: {
+        animation: false,
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
@@ -1534,6 +1558,7 @@ function renderFinal() {
         datasets: [{ data: sorted.map(([,mv]) => +(mv/totalMV*100).toFixed(1)), backgroundColor: sorted.map(([cat]) => ALLOC_COLORS[cat]||'#888'), borderRadius: 3, barThickness: 16 }]
       },
       options: {
+        animation: false,
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(1)+'%' } } },
         scales: {
@@ -1547,6 +1572,9 @@ function renderFinal() {
   const ret = state.returns || [];
   let invested = 0;
   const investedData = ret.map(row => { invested += row.inflows - row.outflows; return invested; });
+  const mvYMin = parseFloat(state.chartOpts?.mvYMin) || undefined;
+  const mvYMax = parseFloat(state.chartOpts?.mvYMax) || undefined;
+  const showInvested = state.chartOpts?.showInvested !== false;
   if (ret.length) {
     _mvChart = new Chart(document.getElementById('fp-mv'), {
       type: 'line',
@@ -1554,15 +1582,16 @@ function renderFinal() {
         labels: ret.map(row => row.period.replace(' 20'," '")),
         datasets: [
           { label: 'Ending Market Value', data: ret.map(r => r.endMV), borderColor: '#0f1f3d', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2, tension: 0.3 },
-          { label: 'Invested Capital',    data: investedData,          borderColor: '#9ca3af', backgroundColor: 'transparent', pointRadius: 2, borderWidth: 1.5, tension: 0.3, borderDash: [4,3] }
+          ...(showInvested ? [{ label: 'Invested Capital', data: investedData, borderColor: '#9ca3af', backgroundColor: 'transparent', pointRadius: 2, borderWidth: 1.5, tension: 0.3, borderDash: [4,3] }] : [])
         ]
       },
       options: {
+        animation: false,
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } } },
         scales: {
           x: { ticks: { font:{size:9} }, grid: { display: false } },
-          y: { ticks: { font:{size:9}, callback: v => '$'+Math.round(v/1000)+'k' }, grid: { color:'#f3f0eb' } }
+          y: { min: mvYMin, max: mvYMax, ticks: { font:{size:9}, callback: v => '$'+Math.round(v/1000)+'k' }, grid: { color:'#f3f0eb' } }
         }
       }
     });
@@ -1745,6 +1774,15 @@ async function loadClient(id) {
     document.getElementById('f-acct').value   = client.account_number || '';
     const notesEl = document.getElementById('f-notes');
     if (notesEl) notesEl.value = d.notes || '';
+    if (d.chartOpts) {
+      state.chartOpts = d.chartOpts;
+      const ymin = document.getElementById('chart-ymin');
+      const ymax = document.getElementById('chart-ymax');
+      const si   = document.getElementById('chart-show-invested');
+      if (ymin) ymin.value = d.chartOpts.mvYMin || '';
+      if (ymax) ymax.value = d.chartOpts.mvYMax || '';
+      if (si)   si.checked = d.chartOpts.showInvested !== false;
+    }
 
     document.getElementById('upload-screen').style.display    = 'none';
     document.getElementById('progress-screen').style.display  = 'none';
@@ -1777,6 +1815,7 @@ async function saveClient() {
       clientNameA: document.getElementById('name-a').value,
       clientNameB: document.getElementById('name-b').value,
       notes:       document.getElementById('f-notes')?.value || '',
+      chartOpts:   state.chartOpts,
     }
   };
 
@@ -1826,6 +1865,13 @@ function newReview() {
 
   const notesEl = document.getElementById('f-notes');
   if (notesEl) notesEl.value = '';
+  state.chartOpts = { mvYMin: '', mvYMax: '', showInvested: true };
+  const ymin = document.getElementById('chart-ymin');
+  const ymax = document.getElementById('chart-ymax');
+  const si   = document.getElementById('chart-show-invested');
+  if (ymin) ymin.value = '';
+  if (ymax) ymax.value = '';
+  if (si)   si.checked = true;
 
   document.getElementById('upload-screen').style.display   = 'flex';
   document.getElementById('progress-screen').style.display = 'none';
