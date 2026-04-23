@@ -352,6 +352,23 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
 .cell-muted { color: var(--muted); font-size: 0.78rem; }
 .cell-ac { font-size: 0.76rem; font-weight: 500; color: var(--navy-mid); }
 
+/* ── REBALANCER ── */
+.rebal-input {
+  width: 78px; text-align: right;
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 3px 6px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; color: var(--ink);
+  background: #faf8f4; transition: border-color 0.15s;
+}
+.rebal-input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+.rebal-ghost-btn {
+  background: none; border: 1px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.65); border-radius: 4px;
+  padding: 2px 10px; font-size: 0.72rem; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; transition: border-color 0.15s, color 0.15s;
+}
+.rebal-ghost-btn:hover { border-color: rgba(255,255,255,0.55); color: #fff; }
+
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: 1fr 1fr; }
@@ -565,6 +582,7 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
     <button class="tab-btn filled" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Holdings</button>
     <button class="tab-btn filled" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Monthly Returns</button>
     <button class="tab-btn" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Final</button>
+    <button class="tab-btn" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Advisor Tool</button>
   </div>
 
   <!-- TAB 0: NET WORTH -->
@@ -686,6 +704,41 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
     </div>
   </div>
 
+  <!-- TAB 4: ADVISOR TOOL -->
+  <div class="tab-content" id="tab-4">
+    <div class="stats-row" id="rebal-stats"></div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Portfolio Rebalancer</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="rebal-ghost-btn" onclick="resetRebalTargets()">Reset to Current</button>
+          <span class="badge">Internal Use Only</span>
+        </div>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table id="rebal-table">
+          <thead><tr>
+            <th>Description</th>
+            <th>Asset Class</th>
+            <th class="r">Market Value</th>
+            <th class="r">Current %</th>
+            <th class="r">Target %</th>
+            <th class="r">Difference</th>
+            <th class="r">To Buy / Sell</th>
+          </tr></thead>
+          <tbody id="rebal-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Internal Notes</h3><span class="badge">Not printed</span></div>
+      <div class="card-body">
+        <div class="field-label" style="margin-bottom:6px;">Rebalancing notes / rationale</div>
+        <textarea class="notes" id="rebal-notes" placeholder="e.g. Trim RBC Core Plus Bond from 11% → 5%, redeploy to US Equity Fund…" oninput="state.rebalanceNotes=this.value" style="min-height:130px;"></textarea>
+      </div>
+    </div>
+  </div>
+
   <!-- EXPORT BAR -->
   <div class="export-bar">
     <button class="btn-export" onclick="exportExcel()">
@@ -728,6 +781,8 @@ const state = {
   files: { holdings: null, returns: null },
   notes: '',
   chartOpts: { mvYMin: '', mvYMax: '', showInvested: true },
+  rebalance: {},
+  rebalanceNotes: '',
 };
 
 // ── DRAG / DROP ──
@@ -1046,6 +1101,7 @@ function renderAll() {
   renderHoldings();
   renderReturns();
   renderFinal();
+  renderAdvisor();
 }
 
 // ── HELPERS ──
@@ -1378,6 +1434,130 @@ function renderAlloc() {
   });
 }
 
+// ── ADVISOR / REBALANCER ──
+function renderAdvisor() {
+  const tbody = document.getElementById('rebal-tbody');
+  if (!tbody) return;
+
+  const h = state.holdings;
+  if (!h || !h.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:2rem;">Load a portfolio to use the rebalancer.</td></tr>';
+    document.getElementById('rebal-stats').innerHTML = '';
+    return;
+  }
+
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  tbody.innerHTML = '';
+  let totalTargetPct = 0;
+
+  h.forEach((row, i) => {
+    const key = row.desc + '|' + row.symbol;
+    const currentPct = row.mv / totalMV * 100;
+    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+    totalTargetPct += targetPct;
+    const diff = targetPct - currentPct;
+    const actionDollars = diff / 100 * totalMV;
+    const assetClass = row.assetClass || row.cat || '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escHtml(row.desc)}</td>
+      <td class="cell-ac">${escHtml(assetClass)}</td>
+      <td class="r">${fmt$(row.mv)}</td>
+      <td class="r">${currentPct.toFixed(2)}%</td>
+      <td class="r" style="padding-top:4px;padding-bottom:4px;">
+        <input class="rebal-input" type="number" step="0.1" min="0" max="100"
+          value="${targetPct.toFixed(2)}"
+          data-rkey="${escHtml(key)}"
+          onchange="handleRebalInput(this)">
+      </td>
+      <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
+      <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const tfr = document.createElement('tr');
+  tfr.className = 'tfoot-row';
+  const tColor = Math.abs(totalTargetPct - 100) < 0.05 ? 'var(--success)' : totalTargetPct > 100 ? 'var(--danger)' : '#b45309';
+  tfr.innerHTML = `
+    <td colspan="3"><strong>Total</strong></td>
+    <td class="r">100.00%</td>
+    <td class="r" id="rebal-total-target" style="font-weight:600;color:${tColor}">${totalTargetPct.toFixed(2)}%</td>
+    <td></td><td></td>
+  `;
+  tbody.appendChild(tfr);
+
+  updateRebalStats(totalMV, totalTargetPct);
+
+  const notesEl = document.getElementById('rebal-notes');
+  if (notesEl && notesEl.value !== state.rebalanceNotes) notesEl.value = state.rebalanceNotes || '';
+}
+
+function updateRebalStats(totalMV, totalTargetPct) {
+  if (totalMV === undefined) {
+    const h = state.holdings || [];
+    totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+    totalTargetPct = 0;
+    h.forEach(row => {
+      const key = row.desc + '|' + row.symbol;
+      const currentPct = row.mv / totalMV * 100;
+      totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+    });
+  }
+  const remaining = 100 - totalTargetPct;
+  const allocColor = Math.abs(remaining) < 0.05 ? 'var(--success)' : Math.abs(remaining) < 5 ? '#b45309' : 'var(--danger)';
+  const statsEl = document.getElementById('rebal-stats');
+  if (statsEl) statsEl.innerHTML = `
+    <div class="stat-card"><div class="lbl">Portfolio Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Allocated</div><div class="val" style="color:${allocColor}">${totalTargetPct.toFixed(2)}%</div></div>
+    <div class="stat-card"><div class="lbl">Remaining to Allocate</div><div class="val" style="color:${Math.abs(remaining) < 0.05 ? 'var(--success)' : 'var(--danger)'}">${remaining >= 0 ? '+' : ''}${remaining.toFixed(2)}%</div></div>
+    <div class="stat-card"><div class="lbl">Positions Adjusted</div><div class="val">${Object.keys(state.rebalance).length}</div></div>
+  `;
+  const totalCell = document.getElementById('rebal-total-target');
+  if (totalCell) {
+    totalCell.textContent = totalTargetPct.toFixed(2) + '%';
+    totalCell.style.color = Math.abs(totalTargetPct - 100) < 0.05 ? 'var(--success)' : totalTargetPct > 100 ? 'var(--danger)' : '#b45309';
+  }
+}
+
+function handleRebalInput(input) {
+  const key = input.dataset.rkey;
+  const val = parseFloat(input.value);
+  if (!isNaN(val) && val >= 0) state.rebalance[key] = val;
+
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  let totalTargetPct = 0;
+
+  h.forEach((row, i) => {
+    const rkey = row.desc + '|' + row.symbol;
+    const currentPct = row.mv / totalMV * 100;
+    const targetPct = state.rebalance[rkey] !== undefined ? state.rebalance[rkey] : currentPct;
+    totalTargetPct += targetPct;
+    const diff = targetPct - currentPct;
+    const actionDollars = diff / 100 * totalMV;
+    const tr = document.querySelector(`#rebal-tbody tr:nth-child(${i + 1})`);
+    if (tr) {
+      const cells = tr.querySelectorAll('td');
+      if (cells[5]) {
+        cells[5].textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%';
+        cells[5].className = 'r ' + (Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg');
+      }
+      if (cells[6]) {
+        cells[6].textContent = (actionDollars >= 0 ? '+' : '') + fmt$(actionDollars);
+        cells[6].className = 'r ' + (Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg');
+      }
+    }
+  });
+
+  updateRebalStats(totalMV, totalTargetPct);
+}
+
+function resetRebalTargets() {
+  state.rebalance = {};
+  renderAdvisor();
+}
+
 // ── RETURNS ──
 function renderReturns() {
   const r = state.returns;
@@ -1608,6 +1788,7 @@ function switchTab(idx) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
   document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
   if (idx === 3) renderFinal();
+  if (idx === 4) renderAdvisor();
 }
 
 // ── EXPORT EXCEL ──
@@ -1783,6 +1964,10 @@ async function loadClient(id) {
       if (ymax) ymax.value = d.chartOpts.mvYMax || '';
       if (si)   si.checked = d.chartOpts.showInvested !== false;
     }
+    state.rebalance = d.rebalance || {};
+    state.rebalanceNotes = d.rebalanceNotes || '';
+    const rebalNotesEl = document.getElementById('rebal-notes');
+    if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
 
     document.getElementById('upload-screen').style.display    = 'none';
     document.getElementById('progress-screen').style.display  = 'none';
@@ -1814,8 +1999,10 @@ async function saveClient() {
       nwLiab:      state.nwLiab,
       clientNameA: document.getElementById('name-a').value,
       clientNameB: document.getElementById('name-b').value,
-      notes:       document.getElementById('f-notes')?.value || '',
-      chartOpts:   state.chartOpts,
+      notes:          document.getElementById('f-notes')?.value || '',
+      chartOpts:      state.chartOpts,
+      rebalance:      state.rebalance,
+      rebalanceNotes: state.rebalanceNotes,
     }
   };
 
@@ -1865,6 +2052,10 @@ function newReview() {
 
   const notesEl = document.getElementById('f-notes');
   if (notesEl) notesEl.value = '';
+  state.rebalance = {};
+  state.rebalanceNotes = '';
+  const rebalNotesEl = document.getElementById('rebal-notes');
+  if (rebalNotesEl) rebalNotesEl.value = '';
   state.chartOpts = { mvYMin: '', mvYMax: '', showInvested: true };
   const ymin = document.getElementById('chart-ymin');
   const ymax = document.getElementById('chart-ymax');
