@@ -595,12 +595,13 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
     <div class="stats-row" id="holdings-stats"></div>
     <div class="card">
       <div class="card-head"><h3>Portfolio Holdings</h3><span class="badge" id="holdings-badge">Auto-populated</span></div>
+      <div id="holdings-header-info" style="padding:0.5rem 1.5rem 0.75rem;display:flex;gap:2rem;font-size:0.83rem;color:var(--muted);border-bottom:1px solid var(--border);flex-wrap:wrap;"></div>
       <div class="card-body" style="overflow-x:auto;">
         <table id="holdings-table">
           <thead><tr>
-            <th>Description</th><th>Symbol</th><th>Cat.</th>
-            <th class="r">Qty</th><th class="r">Price</th><th class="r">Book Value</th>
-            <th class="r">Market Value</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th>
+            <th>Description</th><th>Symbol</th><th>Asset Class</th>
+            <th class="r">% of Total</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Book Value</th>
+            <th class="r">Market Value</th><th class="r">Income</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th>
           </tr></thead>
           <tbody id="holdings-tbody"></tbody>
         </table>
@@ -755,6 +756,40 @@ async function buildReport() {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── PARSE HOLDINGS (XLSX) ──
+function getAssetClass(symbol, desc) {
+  const symbolMap = {
+    'EVF201':  'Savings / HISA',
+    'RBF1691': 'Bond Fund',
+    'FID5982': 'Global Equity Fund',
+    'BTG105':  'US Equity Fund',
+    'FID7680': 'Global Small Cap Fund',
+    'MFC096':  'International Equity Fund',
+    'FID2456': 'Tactical Income Fund',
+    'BTG100':  'Canadian Equity Fund',
+    'TML2064': 'Corporate Bond Fund',
+    'MFC4713': 'Global Bond Fund',
+    'PIC3101': 'Alternative / Market Neutral',
+    'TDB2451': 'Alternative / Commodities',
+    'TDB3455': 'Global Equity Fund',
+  };
+  if (symbolMap[symbol]) return symbolMap[symbol];
+  const d = (desc || '').toLowerCase();
+  if (d.includes('cash balance')) return 'Cash';
+  if (d.includes('high interest savings') || d.includes('hisa')) return 'Savings / HISA';
+  if (d.includes('global tactical bond')) return 'Global Bond Fund';
+  if (d.includes('corporate bond') || d.includes('bissett')) return 'Corporate Bond Fund';
+  if (d.includes('core plus bond') || (d.includes('bond') && !d.includes('corporate') && !d.includes('global'))) return 'Bond Fund';
+  if (d.includes('canadian equity')) return 'Canadian Equity Fund';
+  if (d.includes('american eqty') || d.includes('american equity')) return 'US Equity Fund';
+  if (d.includes('global small cap') || d.includes('small cap')) return 'Global Small Cap Fund';
+  if (d.includes('ivy international') || d.includes('international')) return 'International Equity Fund';
+  if (d.includes('tactical high income') || d.includes('tactical income')) return 'Tactical Income Fund';
+  if (d.includes('market neutral') || d.includes('picton')) return 'Alternative / Market Neutral';
+  if (d.includes('commodit')) return 'Alternative / Commodities';
+  if (d.includes('global innovators') || d.includes('global equity') || d.includes('global focused')) return 'Global Equity Fund';
+  return '';
+}
+
 async function parseHoldings(file) {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
@@ -790,6 +825,7 @@ async function parseHoldings(file) {
     gl:      headers.findIndex(h => h.includes('gain/loss ($)') || (h.includes('gain') && h.includes('$'))),
     glpct:   headers.findIndex(h => h.includes('gain/loss (%)') || (h.includes('gain') && h.includes('%'))),
     pct:     headers.findIndex(h => h === '% of total' || h.includes('% of')),
+    income:  headers.findIndex(h => h.includes('income')),
   };
 
   for (let i = headerRow + 1; i < rows.length; i++) {
@@ -800,16 +836,19 @@ async function parseHoldings(file) {
     const mv = parseFloat(r[idx.mv]) || 0;
     if (mv === 0 && !desc.includes('Cash')) continue;
 
+    const sym = String(r[idx.symbol] || '—').trim();
     holdings.push({
       desc,
-      symbol: String(r[idx.symbol] || '—').trim(),
+      symbol: sym,
       cat: '',
+      assetClass: getAssetClass(sym, desc),
       qty: parseFloat(r[idx.qty]) || null,
       price: parseFloat(r[idx.price]) || null,
       book: parseFloat(r[idx.book]) || 0,
       mv,
       gl: parseFloat(r[idx.gl]) || 0,
       glpct: parseFloat(r[idx.glpct]) || 0,
+      income: idx.income >= 0 ? (parseFloat(r[idx.income]) || null) : null,
     });
   }
 
@@ -829,17 +868,17 @@ async function parseHoldings(file) {
 
 function getDefaultHoldings() {
   return [
-    { desc: 'Canadian Cash Balance', symbol: '—', cat: 'Cash', qty: null, price: null, book: 1606.24, mv: 1606.24, gl: 0, glpct: 0 },
-    { desc: 'Fidelity Global Innovators Cl F', symbol: 'FID5982', cat: 'Intl', qty: 344.3666, price: 51.8017, book: 18268.39, mv: 17838.78, gl: 338.78, glpct: 0.019 },
-    { desc: 'Beutel Goodman American Eqty F', symbol: 'BTG105', cat: 'US', qty: 720.528, price: 20.4244, book: 14330.93, mv: 14716.35, gl: 716.35, glpct: 0.05 },
-    { desc: 'Mackenzie Emerging Markets F NL', symbol: 'MFC5505', cat: 'Intl', qty: 459.949, price: 17.3405, book: 7474.30, mv: 7975.75, gl: 975.75, glpct: 0.131 },
-    { desc: 'Beutel Goodman Canadian Eqty F', symbol: 'BTG100', cat: 'CAD', qty: 149.821, price: 50.7529, book: 7446.58, mv: 7603.85, gl: 642.12, glpct: 0.086 },
-    { desc: 'Fidelity Tactical High Income F', symbol: 'FID2456', cat: 'Alt', qty: 414.8239, price: 17.0799, book: 7385.80, mv: 7085.15, gl: 85.15, glpct: 0.012 },
-    { desc: 'BNS CCC NT LNK AMZN INC S1F', symbol: 'SSP6737', cat: 'PPN', qty: 70, price: 91.54, book: 7000, mv: 6407.80, gl: -412.65, glpct: -0.059 },
-    { desc: 'Fidelity AsiaStar Fund F', symbol: 'FID1608', cat: 'Intl', qty: 77.6451, price: 52.2281, book: 3526.31, mv: 4055.26, gl: 555.26, glpct: 0.157 },
-    { desc: 'Picton Mkt Neutral Alt Fund F', symbol: 'PIC3101', cat: 'Alt', qty: 241.097, price: 16.7646, book: 4031.81, mv: 4041.89, gl: 41.89, glpct: 0.010 },
-    { desc: 'Fidelity Global Small Cap Opp F', symbol: 'FID7680', cat: 'US', qty: 203.4278, price: 19.095, book: 3634.49, mv: 3884.45, gl: 384.45, glpct: 0.106 },
-    { desc: 'TD Alt Commodities Pool F', symbol: 'TDB2451', cat: 'Alt', qty: 208.092, price: 11.53, book: 2283.54, mv: 2399.30, gl: 299.30, glpct: 0.131 },
+    { desc: 'Canadian Cash Balance',        symbol: '—',       cat: 'Cash', assetClass: 'Cash',                        qty: null,     price: null,    book: 1606.24,  mv: 1606.24,  gl: 0,       glpct: 0,      income: null },
+    { desc: 'Fidelity Global Innovators Cl F', symbol: 'FID5982', cat: 'Intl', assetClass: 'Global Equity Fund',        qty: 344.37,   price: 51.80,   book: 18268.39, mv: 17838.78, gl: 338.78,  glpct: 0.019,  income: null },
+    { desc: 'Beutel Goodman American Eqty F',  symbol: 'BTG105',  cat: 'US',   assetClass: 'US Equity Fund',            qty: 720.53,   price: 20.42,   book: 14330.93, mv: 14716.35, gl: 716.35,  glpct: 0.05,   income: null },
+    { desc: 'Mackenzie Emerging Markets F NL', symbol: 'MFC5505', cat: 'Intl', assetClass: 'International Equity Fund', qty: 459.95,   price: 17.34,   book: 7474.30,  mv: 7975.75,  gl: 975.75,  glpct: 0.131,  income: null },
+    { desc: 'Beutel Goodman Canadian Eqty F',  symbol: 'BTG100',  cat: 'CAD',  assetClass: 'Canadian Equity Fund',      qty: 149.82,   price: 50.75,   book: 7446.58,  mv: 7603.85,  gl: 642.12,  glpct: 0.086,  income: null },
+    { desc: 'Fidelity Tactical High Income F', symbol: 'FID2456', cat: 'Alt',  assetClass: 'Tactical Income Fund',      qty: 414.82,   price: 17.08,   book: 7385.80,  mv: 7085.15,  gl: 85.15,   glpct: 0.012,  income: null },
+    { desc: 'BNS CCC NT LNK AMZN INC S1F',    symbol: 'SSP6737', cat: 'PPN',  assetClass: '',                          qty: 70,       price: 91.54,   book: 7000,     mv: 6407.80,  gl: -412.65, glpct: -0.059, income: null },
+    { desc: 'Fidelity AsiaStar Fund F',        symbol: 'FID1608', cat: 'Intl', assetClass: 'International Equity Fund', qty: 77.65,    price: 52.23,   book: 3526.31,  mv: 4055.26,  gl: 555.26,  glpct: 0.157,  income: null },
+    { desc: 'Picton Mkt Neutral Alt Fund F',   symbol: 'PIC3101', cat: 'Alt',  assetClass: 'Alternative / Market Neutral', qty: 241.10, price: 16.76, book: 4031.81,  mv: 4041.89,  gl: 41.89,   glpct: 0.010,  income: null },
+    { desc: 'Fidelity Global Small Cap Opp F', symbol: 'FID7680', cat: 'US',   assetClass: 'Global Small Cap Fund',     qty: 203.43,   price: 19.10,   book: 3634.49,  mv: 3884.45,  gl: 384.45,  glpct: 0.106,  income: null },
+    { desc: 'TD Alt Commodities Pool F',       symbol: 'TDB2451', cat: 'Alt',  assetClass: 'Alternative / Commodities', qty: 208.09,   price: 11.53,   book: 2283.54,  mv: 2399.30,  gl: 299.30,  glpct: 0.131,  income: null },
   ];
 }
 
@@ -973,7 +1012,7 @@ function renderAll() {
 // ── HELPERS ──
 function fmt$(n) {
   if (n === null || n === undefined) return '—';
-  return (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-CA');
+  return (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtN(n, dp = 4) {
   if (n === null || n === undefined) return '—';
@@ -1091,10 +1130,19 @@ function renderNetWorth() {
 // ── HOLDINGS ──
 function renderHoldings() {
   const h = state.holdings;
-  const totalMV = h.reduce((s, r) => s + r.mv, 0);
+  const totalMV   = h.reduce((s, r) => s + r.mv, 0);
   const totalBook = h.reduce((s, r) => s + r.book, 0);
-  const totalGL = h.reduce((s, r) => s + r.gl, 0);
+  const totalGL   = h.reduce((s, r) => s + r.gl, 0);
   const totalGLpct = totalBook > 0 ? totalGL / totalBook : 0;
+  const totalIncome = h.reduce((s, r) => s + (r.income || 0), 0);
+
+  const headerInfo = document.getElementById('holdings-header-info');
+  if (headerInfo) {
+    const client = document.getElementById('f-client')?.value || '—';
+    const acct   = document.getElementById('f-acct')?.value   || '—';
+    const date   = document.getElementById('f-date')?.value   || '—';
+    headerInfo.innerHTML = `<span><strong>Client:</strong> ${client}</span><span><strong>Account #:</strong> ${acct}</span><span><strong>Date:</strong> ${date}</span><span><strong>Currency:</strong> CAD</span>`;
+  }
 
   document.getElementById('holdings-stats').innerHTML = `
     <div class="stat-card"><div class="lbl">Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
@@ -1106,15 +1154,19 @@ function renderHoldings() {
   const tbody = document.getElementById('holdings-tbody');
   tbody.innerHTML = '';
   h.forEach(row => {
+    const assetClass = row.assetClass || getAssetClass(row.symbol, row.desc);
+    const pctOfTotal = totalMV > 0 ? (row.mv / totalMV * 100).toFixed(2) + '%' : '—';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${row.desc}</td>
       <td style="color:var(--muted);font-size:0.78rem;">${row.symbol}</td>
-      <td><input type="text" value="${row.cat||''}" data-idx="${h.indexOf(row)}" oninput="state.holdings[this.dataset.idx].cat=this.value;renderAlloc();" style="font-size:0.72rem;padding:2px 7px;border-radius:20px;background:#f0ede7;font-weight:500;border:1px solid transparent;width:60px;text-align:center;cursor:pointer;" onfocus="this.style.borderColor='var(--gold)';this.style.background='#fff';" onblur="this.style.borderColor='transparent';this.style.background='#f0ede7';"></td>
-      <td class="r">${row.qty ? fmtN(row.qty, 4) : '—'}</td>
-      <td class="r">${row.price ? fmt$(row.price) : '—'}</td>
+      <td><span style="font-size:0.75rem;padding:2px 8px;border-radius:20px;background:#f0ede7;font-weight:500;white-space:nowrap;">${assetClass || '—'}</span></td>
+      <td class="r">${pctOfTotal}</td>
+      <td class="r">${row.qty != null ? fmtN(row.qty, 2) : '—'}</td>
+      <td class="r">${row.price != null ? fmt$(row.price) : '—'}</td>
       <td class="r">${fmt$(row.book)}</td>
       <td class="r">${fmt$(row.mv)}</td>
+      <td class="r">${row.income ? fmt$(row.income) : '—'}</td>
       <td class="r ${clsSign(row.gl)}">${row.gl >= 0 ? '+' : ''}${fmt$(row.gl)}</td>
       <td class="r ${clsSign(row.glpct)}">${fmtPct(row.glpct)}</td>
     `;
@@ -1124,9 +1176,12 @@ function renderHoldings() {
   const tr = document.createElement('tr');
   tr.className = 'tfoot-row';
   tr.innerHTML = `
-    <td colspan="5"><strong>Total</strong></td>
+    <td colspan="3"><strong>Total</strong></td>
+    <td class="r">100.00%</td>
+    <td></td><td></td>
     <td class="r">${fmt$(totalBook)}</td>
     <td class="r">${fmt$(totalMV)}</td>
+    <td class="r">${totalIncome ? fmt$(totalIncome) : '—'}</td>
     <td class="r ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</td>
     <td class="r ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</td>
   `;
