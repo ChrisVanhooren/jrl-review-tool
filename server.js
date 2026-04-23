@@ -10,6 +10,8 @@ const pool = process.env.DATABASE_URL
   ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
   : null;
 
+if (pool) pool.on('error', err => console.error('Pool error:', err.message));
+
 async function initDB() {
   if (!pool) return;
   await pool.query(`
