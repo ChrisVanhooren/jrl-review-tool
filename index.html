@@ -182,7 +182,7 @@ body {
 .tab-btn.filled .tab-dot { background: var(--success); }
 
 /* ── CONTENT ── */
-.tab-content { display: none; padding: 2rem 2.5rem 4rem; max-width: 1100px; }
+.tab-content { display: none; padding: 2rem 2.5rem 4rem; max-width: 1500px; }
 .tab-content.active { display: block; }
 
 /* ── SECTION CARD ── */
@@ -340,10 +340,17 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
 
 /* ── ALLOC BARS ── */
 .alloc-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.82rem; }
-.alloc-name { width: 180px; flex-shrink: 0; }
+.alloc-name { width: 220px; flex-shrink: 0; }
 .alloc-bar-wrap { flex: 1; background: #f0ede7; border-radius: 3px; height: 7px; }
 .alloc-bar { height: 7px; border-radius: 3px; }
 .alloc-pct { width: 48px; text-align: right; font-weight: 500; color: var(--navy); }
+
+/* ── EDITABLE CELLS ── */
+td[contenteditable="true"] { cursor: text; }
+td[contenteditable="true"]:hover { background: #fffdf7 !important; outline: 1px dashed #ddd; }
+td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius: 2px; background: var(--white) !important; }
+.cell-muted { color: var(--muted); font-size: 0.78rem; }
+.cell-ac { font-size: 0.76rem; font-weight: 500; color: var(--navy-mid); }
 
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
@@ -643,6 +650,14 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
         </div>
       </div>
     </div>
+    <!-- Advisor Notes -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-head"><h3>Advisor Notes</h3><span class="badge">Appears on report</span></div>
+      <div class="card-body">
+        <div class="field-label" style="margin-bottom:6px;">Notes / Changes</div>
+        <textarea class="notes" id="f-notes" placeholder="Add any notes, changes, or commentary for this review…" oninput="renderFinal()" style="min-height:110px;"></textarea>
+      </div>
+    </div>
     <!-- Printable report area -->
     <div id="print-report">
       <div class="final-preview" id="final-preview-content"></div>
@@ -688,7 +703,8 @@ const state = {
     'Corporate Mortgage':            { a: 0, b: 0, j: 0 },
     'Corporate LOC':                 { a: 0, b: 0, j: 0 },
   },
-  files: { holdings: null, returns: null }
+  files: { holdings: null, returns: null },
+  notes: '',
 };
 
 // ── DRAG / DROP ──
@@ -1130,9 +1146,9 @@ function renderNetWorth() {
 // ── HOLDINGS ──
 function renderHoldings() {
   const h = state.holdings;
-  const totalMV   = h.reduce((s, r) => s + r.mv, 0);
-  const totalBook = h.reduce((s, r) => s + r.book, 0);
-  const totalGL   = h.reduce((s, r) => s + r.gl, 0);
+  const totalMV    = h.reduce((s, r) => s + r.mv, 0);
+  const totalBook  = h.reduce((s, r) => s + r.book, 0);
+  const totalGL    = h.reduce((s, r) => s + r.gl, 0);
   const totalGLpct = totalBook > 0 ? totalGL / totalBook : 0;
   const totalIncome = h.reduce((s, r) => s + (r.income || 0), 0);
 
@@ -1153,29 +1169,52 @@ function renderHoldings() {
 
   const tbody = document.getElementById('holdings-tbody');
   tbody.innerHTML = '';
-  h.forEach(row => {
+
+  h.forEach((row, i) => {
     const assetClass = row.assetClass || getAssetClass(row.symbol, row.desc);
     const pctOfTotal = totalMV > 0 ? (row.mv / totalMV * 100).toFixed(2) + '%' : '—';
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row.desc}</td>
-      <td style="color:var(--muted);font-size:0.78rem;">${row.symbol}</td>
-      <td><span style="font-size:0.75rem;padding:2px 8px;border-radius:20px;background:#f0ede7;font-weight:500;white-space:nowrap;">${assetClass || '—'}</span></td>
-      <td class="r">${pctOfTotal}</td>
-      <td class="r">${row.qty != null ? fmtN(row.qty, 2) : '—'}</td>
-      <td class="r">${row.price != null ? fmt$(row.price) : '—'}</td>
-      <td class="r">${fmt$(row.book)}</td>
-      <td class="r">${fmt$(row.mv)}</td>
-      <td class="r">${row.income ? fmt$(row.income) : '—'}</td>
-      <td class="r ${clsSign(row.gl)}">${row.gl >= 0 ? '+' : ''}${fmt$(row.gl)}</td>
-      <td class="r ${clsSign(row.glpct)}">${fmtPct(row.glpct)}</td>
-    `;
+
+    function eCell(cls, txt, field) {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.contentEditable = 'true';
+      td.dataset.field = field;
+      td.dataset.hidx = i;
+      td.textContent = txt;
+      td.addEventListener('blur', () => handleHoldingEdit(td));
+      td.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); td.blur(); } });
+      return td;
+    }
+
+    tr.appendChild(eCell('', row.desc, 'desc'));
+    tr.appendChild(eCell('cell-muted', row.symbol, 'symbol'));
+    tr.appendChild(eCell('cell-ac', assetClass || '—', 'assetClass'));
+
+    const tdPct = document.createElement('td');
+    tdPct.className = 'r';
+    tdPct.textContent = pctOfTotal;
+    tdPct.dataset.pctIdx = i;
+    tr.appendChild(tdPct);
+
+    tr.appendChild(eCell('r', row.qty != null ? fmtN(row.qty, 2) : '—', 'qty'));
+    tr.appendChild(eCell('r', row.price != null ? fmt$(row.price) : '—', 'price'));
+    tr.appendChild(eCell('r', fmt$(row.book), 'book'));
+    tr.appendChild(eCell('r', fmt$(row.mv), 'mv'));
+    tr.appendChild(eCell('r', row.income ? fmt$(row.income) : '—', 'income'));
+
+    const glCell = eCell('r ' + clsSign(row.gl), (row.gl >= 0 ? '+' : '') + fmt$(row.gl), 'gl');
+    tr.appendChild(glCell);
+    const glpctCell = eCell('r ' + clsSign(row.glpct), fmtPct(row.glpct), 'glpct');
+    tr.appendChild(glpctCell);
+
     tbody.appendChild(tr);
   });
 
-  const tr = document.createElement('tr');
-  tr.className = 'tfoot-row';
-  tr.innerHTML = `
+  const tfr = document.createElement('tr');
+  tfr.className = 'tfoot-row';
+  tfr.dataset.totalsRow = 'true';
+  tfr.innerHTML = `
     <td colspan="3"><strong>Total</strong></td>
     <td class="r">100.00%</td>
     <td></td><td></td>
@@ -1185,27 +1224,127 @@ function renderHoldings() {
     <td class="r ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</td>
     <td class="r ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</td>
   `;
-  tbody.appendChild(tr);
+  tbody.appendChild(tfr);
 
   renderAlloc();
 }
+
+function handleHoldingEdit(td) {
+  const i = parseInt(td.dataset.hidx);
+  const field = td.dataset.field;
+  const row = state.holdings[i];
+  const rawText = td.textContent.trim();
+
+  if (field === 'desc')   { row.desc = rawText; return; }
+  if (field === 'symbol') { row.symbol = rawText; return; }
+  if (field === 'assetClass') {
+    row.assetClass = rawText === '—' ? '' : rawText;
+    updateHoldingsTotals();
+    return;
+  }
+
+  const parsed = parseFloat(rawText.replace(/[$,+\s]/g, ''));
+
+  if (field === 'qty') {
+    row.qty = isNaN(parsed) ? null : parsed;
+    td.textContent = row.qty != null ? fmtN(row.qty, 2) : '—';
+  } else if (field === 'price') {
+    row.price = isNaN(parsed) ? null : parsed;
+    td.textContent = row.price != null ? fmt$(row.price) : '—';
+  } else if (field === 'book') {
+    row.book = isNaN(parsed) ? 0 : parsed;
+    td.textContent = fmt$(row.book);
+  } else if (field === 'mv') {
+    row.mv = isNaN(parsed) ? 0 : parsed;
+    td.textContent = fmt$(row.mv);
+  } else if (field === 'income') {
+    row.income = isNaN(parsed) ? null : parsed;
+    td.textContent = row.income ? fmt$(row.income) : '—';
+  } else if (field === 'gl') {
+    row.gl = isNaN(parsed) ? 0 : parsed;
+    td.textContent = (row.gl >= 0 ? '+' : '') + fmt$(row.gl);
+    td.className = 'r ' + clsSign(row.gl);
+  } else if (field === 'glpct') {
+    const rawNum = parseFloat(rawText.replace(/[%+\s,]/g, ''));
+    row.glpct = isNaN(rawNum) ? 0 : rawNum / 100;
+    td.textContent = fmtPct(row.glpct);
+    td.className = 'r ' + clsSign(row.glpct);
+    return;
+  }
+
+  updateHoldingsTotals();
+}
+
+function updateHoldingsTotals() {
+  const h = state.holdings;
+  const totalMV    = h.reduce((s, r) => s + r.mv, 0);
+  const totalBook  = h.reduce((s, r) => s + r.book, 0);
+  const totalGL    = h.reduce((s, r) => s + r.gl, 0);
+  const totalGLpct = totalBook > 0 ? totalGL / totalBook : 0;
+  const totalIncome = h.reduce((s, r) => s + (r.income || 0), 0);
+
+  document.getElementById('holdings-stats').innerHTML = `
+    <div class="stat-card"><div class="lbl">Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
+    <div class="stat-card"><div class="lbl">Book Value</div><div class="val">${fmt$(totalBook)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Gain/Loss</div><div class="val ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</div></div>
+    <div class="stat-card"><div class="lbl">Overall Return</div><div class="val ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</div></div>
+  `;
+
+  h.forEach((row, i) => {
+    const pctEl = document.querySelector(`[data-pct-idx="${i}"]`);
+    if (pctEl) pctEl.textContent = totalMV > 0 ? (row.mv / totalMV * 100).toFixed(2) + '%' : '—';
+  });
+
+  const totalsRow = document.querySelector('#holdings-tbody [data-totals-row]');
+  if (totalsRow) {
+    totalsRow.innerHTML = `
+      <td colspan="3"><strong>Total</strong></td>
+      <td class="r">100.00%</td>
+      <td></td><td></td>
+      <td class="r">${fmt$(totalBook)}</td>
+      <td class="r">${fmt$(totalMV)}</td>
+      <td class="r">${totalIncome ? fmt$(totalIncome) : '—'}</td>
+      <td class="r ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</td>
+      <td class="r ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</td>
+    `;
+  }
+
+  renderAlloc();
+}
+
+const ALLOC_COLORS = {
+  'Cash': '#888780',
+  'Savings / HISA': '#5bb99e',
+  'Bond Fund': '#5b6bbf',
+  'Corporate Bond Fund': '#4a5ab8',
+  'Global Bond Fund': '#3a4ab0',
+  'Canadian Equity Fund': '#534AB7',
+  'US Equity Fund': '#378ADD',
+  'Global Equity Fund': '#1D9E75',
+  'Global Small Cap Fund': '#15876a',
+  'International Equity Fund': '#0e6e54',
+  'Tactical Income Fund': '#BA7517',
+  'Alternative / Market Neutral': '#D4537E',
+  'Alternative / Commodities': '#c94a4a',
+  'C': '#534AB7', 'CAD': '#534AB7', 'U': '#378ADD', 'US': '#378ADD',
+  'Intl': '#1D9E75', 'Alt': '#BA7517', 'PPN': '#D4537E', 'Other': '#999',
+};
 
 function renderAlloc() {
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
   const alloc = {};
   h.forEach(row => {
-    const cat = (row.cat || 'Other').trim();
+    const cat = (row.assetClass || row.cat || 'Other').trim() || 'Other';
     alloc[cat] = (alloc[cat] || 0) + row.mv;
   });
-  const colors = { Cash:'#888780',C:'#534AB7',CAD:'#534AB7',U:'#378ADD',US:'#378ADD',Intl:'#1D9E75',intl:'#1D9E75',alt:'#BA7517',Alt:'#BA7517',ppn:'#D4537E',PPN:'#D4537E',Other:'#999' };
   const allocBody = document.getElementById('alloc-body');
   if (!allocBody) return;
   allocBody.innerHTML = '';
   const sorted = Object.entries(alloc).sort((a, b) => b[1] - a[1]);
   sorted.forEach(([cat, mv]) => {
     const pct = mv / totalMV;
-    const color = colors[cat] || '#888';
+    const color = ALLOC_COLORS[cat] || '#888';
     allocBody.innerHTML += `
       <div class="alloc-row">
         <div class="alloc-name">${cat}</div>
@@ -1260,6 +1399,7 @@ function renderFinal() {
   const client = document.getElementById('f-client')?.value || 'Client';
   const date   = document.getElementById('f-date')?.value || '';
   const acct   = document.getElementById('f-acct')?.value || '';
+  const notes  = document.getElementById('f-notes')?.value || '';
 
   let totA_a=0,totA_b=0,totA_j=0,totL_a=0,totL_b=0,totL_j=0;
   Object.values(state.nwAssets).forEach(v => { totA_a+=v.a||0; totA_b+=v.b||0; totA_j+=v.j||0; });
@@ -1347,7 +1487,12 @@ function renderFinal() {
           <div style="height:200px;position:relative;"><canvas id="fp-mv"></canvas></div>
         </div>
       </div>
-      <div style="margin-top:1.5rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);line-height:1.7;">
+      ${notes ? `
+      <div style="margin-top:1.5rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <div style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Advisor Notes</div>
+        <div style="font-size:0.82rem;line-height:1.7;white-space:pre-wrap;">${escHtml(notes)}</div>
+      </div>` : ''}
+      <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);line-height:1.7;">
         This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions.
         Aligned Capital Partners Inc. is regulated by the Canadian Investment Regulatory Organization (CIRO) and Member of the Canadian Investor Protection Fund (CIPF).
       </div>
@@ -1379,15 +1524,14 @@ function renderFinal() {
   const h = state.holdings || [];
   const totalMV = h.reduce((s,r) => s+r.mv, 0) || 1;
   const alloc = {};
-  h.forEach(r => { const cat = (r.cat||'Other').trim(); alloc[cat] = (alloc[cat]||0) + r.mv; });
+  h.forEach(r => { const cat = (r.assetClass || r.cat || 'Other').trim() || 'Other'; alloc[cat] = (alloc[cat]||0) + r.mv; });
   const sorted = Object.entries(alloc).sort((a,b) => b[1]-a[1]);
-  const catColors = { Cash:'#888780', C:'#534AB7', CAD:'#534AB7', U:'#378ADD', US:'#378ADD', Intl:'#1D9E75', intl:'#1D9E75', alt:'#BA7517', Alt:'#BA7517', ppn:'#D4537E', PPN:'#D4537E', Other:'#999' };
   if (sorted.length) {
     _allocChart = new Chart(document.getElementById('fp-alloc'), {
       type: 'bar',
       data: {
         labels: sorted.map(([cat]) => cat),
-        datasets: [{ data: sorted.map(([,mv]) => +(mv/totalMV*100).toFixed(1)), backgroundColor: sorted.map(([cat]) => catColors[cat]||'#888'), borderRadius: 3, barThickness: 16 }]
+        datasets: [{ data: sorted.map(([,mv]) => +(mv/totalMV*100).toFixed(1)), backgroundColor: sorted.map(([cat]) => ALLOC_COLORS[cat]||'#888'), borderRadius: 3, barThickness: 16 }]
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1599,6 +1743,8 @@ async function loadClient(id) {
     document.getElementById('f-client').value = client.name;
     document.getElementById('f-date').value   = client.review_date || '';
     document.getElementById('f-acct').value   = client.account_number || '';
+    const notesEl = document.getElementById('f-notes');
+    if (notesEl) notesEl.value = d.notes || '';
 
     document.getElementById('upload-screen').style.display    = 'none';
     document.getElementById('progress-screen').style.display  = 'none';
@@ -1630,6 +1776,7 @@ async function saveClient() {
       nwLiab:      state.nwLiab,
       clientNameA: document.getElementById('name-a').value,
       clientNameB: document.getElementById('name-b').value,
+      notes:       document.getElementById('f-notes')?.value || '',
     }
   };
 
@@ -1676,6 +1823,9 @@ function newReview() {
   document.getElementById('btn-build').disabled         = true;
   document.getElementById('topbar-client').textContent  = '';
   document.getElementById('btn-topbar-save').style.display = 'none';
+
+  const notesEl = document.getElementById('f-notes');
+  if (notesEl) notesEl.value = '';
 
   document.getElementById('upload-screen').style.display   = 'flex';
   document.getElementById('progress-screen').style.display = 'none';
