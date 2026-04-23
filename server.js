@@ -93,9 +93,9 @@ app.delete('/api/clients/:id', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-initDB()
-  .then(() => app.listen(PORT, '0.0.0.0', () => console.log(`Listening on port ${PORT}`)))
-  .catch(err => {
-    console.error('DB init error:', err.message);
-    app.listen(PORT, '0.0.0.0', () => console.log(`Listening on port ${PORT} (no DB)`));
-  });
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Listening on port ${PORT}`);
+  initDB()
+    .then(() => console.log('DB ready'))
+    .catch(err => console.error('DB init error:', err.message));
+});
