@@ -394,7 +394,7 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
   tr[style*="background:var(--navy)"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   @page { size: A4 landscape; margin: 5mm; }
   .sidebar { display: none !important; }
-  #print-report { zoom: 0.62; }
+  #print-report { zoom: 0.72; }
 }
 
 /* ── LAYOUT ── */
@@ -1622,6 +1622,15 @@ function renderFinal() {
     return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
   }).join('');
 
+  const ret0       = state.returns || [];
+  const netContrib = ret0.reduce((s, r) => s + r.inflows - r.outflows, 0);
+  const lastEndMV  = ret0.length ? ret0[ret0.length - 1].endMV : 0;
+  const marketGain = lastEndMV - netContrib;
+  const cumROR     = ret0.reduce((prod, r) => prod * (1 + r.ror), 1) - 1;
+  const perfPeriod = ret0.length ? ret0[0].period + ' – ' + ret0[ret0.length - 1].period : '—';
+  const gainClr    = marketGain >= 0 ? '#1a7c5a' : '#b91c1c';
+  const rorClr     = cumROR >= 0 ? '#1a7c5a' : '#b91c1c';
+
   document.getElementById('final-preview-content').innerHTML = `
     <div class="fp-header" style="padding:1rem 2rem;background:#ffffff;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f1f3d;">
       <div style="flex-shrink:0;">
@@ -1639,59 +1648,88 @@ function renderFinal() {
       </div>
     </div>
     <div class="fp-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+
+      <!-- Row 1: Net Worth Summary + Pie side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.75rem;margin-bottom:1.75rem;">
         <div>
           <div class="fp-section-title">Net Worth Summary</div>
           <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
             <thead><tr>
-              <th style="text-align:left;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);"></th>
-              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().a}</th>
-              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().b}</th>
-              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Joint</th>
-              <th style="text-align:right;padding:4px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Total</th>
+              <th style="text-align:left;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);"></th>
+              <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().a}</th>
+              <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().b}</th>
+              <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Joint</th>
+              <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Total</th>
             </tr></thead>
             <tbody>
               ${assetRows}
               <tr style="font-weight:600;border-top:1px solid var(--border);">
-                <td style="padding:4px 6px;">Total Assets</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totA_a)}</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totA_b)}</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totA_j)}</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totA)}</td>
+                <td style="padding:5px 6px;">Total Assets</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_a)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_b)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_j)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totA)}</td>
               </tr>
               ${liabRows}
               <tr style="font-weight:600;border-top:1px solid var(--border);">
-                <td style="padding:4px 6px;">Total Liabilities</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totL_a)}</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totL_b)}</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totL_j)}</td>
-                <td style="text-align:right;padding:4px 6px;">${fmtC(totL)}</td>
+                <td style="padding:5px 6px;">Total Liabilities</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totL_a)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totL_b)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totL_j)}</td>
+                <td style="text-align:right;padding:5px 6px;">${fmtC(totL)}</td>
               </tr>
               <tr style="font-weight:700;background:var(--navy);color:#fff;">
-                <td style="padding:5px 6px;">Net Worth</td>
-                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_a-totL_a)}</td>
-                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_b-totL_b)}</td>
-                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_j-totL_j)}</td>
-                <td style="text-align:right;padding:5px 6px;">${fmtC(nw)}</td>
+                <td style="padding:6px 6px;">Net Worth</td>
+                <td style="text-align:right;padding:6px 6px;">${fmtC(totA_a-totL_a)}</td>
+                <td style="text-align:right;padding:6px 6px;">${fmtC(totA_b-totL_b)}</td>
+                <td style="text-align:right;padding:6px 6px;">${fmtC(totA_j-totL_j)}</td>
+                <td style="text-align:right;padding:6px 6px;">${fmtC(nw)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <div>
           <div class="fp-section-title">Net Worth Breakdown</div>
-          <div style="height:200px;position:relative;"><canvas id="fp-pie"></canvas></div>
-        </div>
-        <div>
-          <div class="fp-section-title">Investment Asset Allocation</div>
-          <div style="height:200px;position:relative;"><canvas id="fp-alloc"></canvas></div>
-        </div>
-        <div>
-          <div class="fp-section-title">Investable Assets Market Value History</div>
-          <div style="height:200px;position:relative;"><canvas id="fp-mv"></canvas></div>
+          <div style="height:220px;position:relative;"><canvas id="fp-pie"></canvas></div>
         </div>
       </div>
+
+      <!-- Row 2: MV History (full width) + Performance at a Glance callout -->
+      <div style="margin-bottom:1.75rem;">
+        <div class="fp-section-title">Investable Assets — Market Value History</div>
+        <div style="height:200px;position:relative;"><canvas id="fp-mv"></canvas></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:0.75rem;border:1px solid #e2ddd6;border-radius:8px;overflow:hidden;">
+          <div style="padding:10px 16px;border-right:1px solid #e2ddd6;background:#faf8f4;">
+            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Net Contributions</div>
+            <div style="font-size:1rem;font-weight:600;color:#0f1f3d;">${fmt$(netContrib)}</div>
+            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">Total cash deposited</div>
+          </div>
+          <div style="padding:10px 16px;border-right:1px solid #e2ddd6;background:#faf8f4;">
+            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Market Gain</div>
+            <div style="font-size:1rem;font-weight:600;color:${gainClr};">${marketGain >= 0 ? '+' : ''}${fmt$(marketGain)}</div>
+            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">Growth from investing</div>
+          </div>
+          <div style="padding:10px 16px;border-right:1px solid #e2ddd6;background:#faf8f4;">
+            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Time-Weighted Return</div>
+            <div style="font-size:1rem;font-weight:600;color:${rorClr};">${cumROR >= 0 ? '+' : ''}${(cumROR * 100).toFixed(2)}%</div>
+            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">Cash-flow adjusted</div>
+          </div>
+          <div style="padding:10px 16px;background:#faf8f4;">
+            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Ending Market Value</div>
+            <div style="font-size:1rem;font-weight:600;color:#0f1f3d;">${fmt$(lastEndMV)}</div>
+            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">${perfPeriod}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Asset Allocation (full width) -->
+      <div style="margin-bottom:1rem;">
+        <div class="fp-section-title">Investment Asset Allocation</div>
+        <div style="height:200px;position:relative;"><canvas id="fp-alloc"></canvas></div>
+      </div>
+
       ${notes ? `
-      <div style="margin-top:1.5rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+      <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border);">
         <div style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Advisor Notes</div>
         <div style="font-size:0.82rem;line-height:1.7;white-space:pre-wrap;">${escHtml(notes)}</div>
       </div>` : ''}
