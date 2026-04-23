@@ -6,10 +6,11 @@ process.on('uncaughtException', err => console.error('Uncaught:', err.message));
 process.on('unhandledRejection', err => console.error('Unhandled rejection:', err));
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname)));
 
 app.get('/health', (req, res) => res.send('ok'));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(path.join(__dirname)));
 
 const pool = process.env.DATABASE_URL
   ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
