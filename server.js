@@ -4,6 +4,9 @@ const path = require('path');
 
 process.on('uncaughtException', err => console.error('Uncaught:', err.message));
 process.on('unhandledRejection', err => console.error('Unhandled rejection:', err));
+process.on('exit', code => console.log('Process exit code:', code));
+process.on('SIGTERM', () => { console.log('SIGTERM received'); process.exit(0); });
+process.on('SIGINT', () => { console.log('SIGINT received'); process.exit(0); });
 
 const app = express();
 
