@@ -2,9 +2,14 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 
+process.on('uncaughtException', err => console.error('Uncaught:', err.message));
+process.on('unhandledRejection', err => console.error('Unhandled rejection:', err));
+
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
+
+app.get('/health', (req, res) => res.send('ok'));
 
 const pool = process.env.DATABASE_URL
   ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
