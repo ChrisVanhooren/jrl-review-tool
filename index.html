@@ -369,7 +369,127 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
   canvas { max-width: 100% !important; }
   tr[style*="background:var(--navy)"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   @page { size: A4 landscape; margin: 8mm; }
+  .sidebar { display: none !important; }
 }
+
+/* ── LAYOUT ── */
+.main-layout { display: flex; align-items: flex-start; min-height: calc(100vh - 60px); }
+.main-content { flex: 1; min-width: 0; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--white);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 60px;
+  height: calc(100vh - 60px);
+  overflow: hidden;
+}
+.sidebar-top {
+  padding: 0.875rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.btn-new {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  background: var(--navy);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-new:hover { background: var(--navy-mid); }
+.sidebar-search {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  background: #faf8f4;
+  color: var(--ink);
+  transition: border-color 0.15s;
+}
+.sidebar-search:focus { outline: none; border-color: var(--gold); background: var(--white); }
+.sidebar-search::placeholder { color: var(--muted); }
+.client-list { flex: 1; overflow-y: auto; }
+.client-item {
+  padding: 0.75rem 0.875rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f0eb;
+  transition: background 0.12s;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+}
+.client-item:hover { background: #faf8f4; }
+.client-item.active { background: #f5f0e5; border-left: 3px solid var(--gold); padding-left: calc(0.875rem - 3px); }
+.client-item-info { flex: 1; min-width: 0; }
+.client-item-name { font-weight: 500; font-size: 0.84rem; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.client-item-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+.client-del {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.client-item:hover .client-del { opacity: 1; }
+.client-del:hover { color: var(--danger); }
+.client-empty { padding: 2rem 1rem; text-align: center; font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+
+/* ── TOPBAR SAVE BUTTON ── */
+.btn-topbar-save {
+  display: none;
+  background: var(--gold);
+  color: var(--navy);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.4rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-topbar-save:hover { background: #b8963e; }
+.topbar-client-name { font-size: 0.78rem; color: rgba(255,255,255,0.5); font-weight: 300; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--navy);
+  color: var(--white);
+  padding: 0.55rem 1.4rem;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 300;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -377,7 +497,23 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="logo">JRL Private Wealth <span>Client Review Builder</span></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="topbar-client-name" id="topbar-client"></span>
+    <button class="btn-topbar-save" id="btn-topbar-save" onclick="saveClient()">Save</button>
+  </div>
 </div>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <button class="btn-new" onclick="newReview()">+ New Review</button>
+      <input class="sidebar-search" placeholder="Search clients…" oninput="debounceSearch(this.value)">
+    </div>
+    <div class="client-list" id="client-list">
+      <div class="client-empty">Loading…</div>
+    </div>
+  </div>
+  <div class="main-content">
 
 <!-- UPLOAD SCREEN -->
 <div id="upload-screen">
@@ -526,11 +662,16 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
   </div>
 </div>
 
+  </div><!-- end main-content -->
+</div><!-- end main-layout -->
+<div class="toast" id="toast"></div>
+
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ── STATE ──
 const state = {
+  currentClientId: null,
   holdings: null,
   returns: null,
   nwAssets: {
@@ -602,6 +743,9 @@ async function buildReport() {
     await sleep(400);
     ps.style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
+    state.currentClientId = null;
+    document.getElementById('topbar-client').textContent = '';
+    document.getElementById('btn-topbar-save').style.display = 'block';
   } catch(err) {
     setProgress(0, '⚠ Error: ' + err.message);
     console.error(err);
@@ -1354,6 +1498,159 @@ function exportExcel() {
   const dateSlug   = (date || 'Review').replace(/[\s,]+/g, '_');
   XLSX.writeFile(wb, `${clientSlug}_Review_${dateSlug}.xlsx`);
 }
+
+// ── CLIENT API ──
+async function loadClientList(search = '') {
+  try {
+    const r = await fetch('/api/clients' + (search ? '?search=' + encodeURIComponent(search) : ''));
+    renderClientList(await r.json());
+  } catch {
+    document.getElementById('client-list').innerHTML = '<div class="client-empty">Could not reach server</div>';
+  }
+}
+
+function renderClientList(clients) {
+  const el = document.getElementById('client-list');
+  if (!clients.length) {
+    el.innerHTML = '<div class="client-empty">No saved clients yet.<br>Build a review and hit Save.</div>';
+    return;
+  }
+  el.innerHTML = clients.map(c => `
+    <div class="client-item ${c.id === state.currentClientId ? 'active' : ''}" onclick="loadClient(${c.id})">
+      <div class="client-item-info">
+        <div class="client-item-name">${escHtml(c.name)}</div>
+        <div class="client-item-meta">${c.review_date || '—'}${c.account_number ? ' &nbsp;·&nbsp; #' + escHtml(c.account_number) : ''}</div>
+      </div>
+      <button class="client-del" onclick="deleteClient(${c.id},event)" title="Delete">×</button>
+    </div>
+  `).join('');
+}
+
+async function loadClient(id) {
+  try {
+    const r = await fetch('/api/clients/' + id);
+    if (!r.ok) throw new Error('Not found');
+    const client = await r.json();
+    const d = client.data;
+
+    state.currentClientId = client.id;
+    state.holdings = d.holdings;
+    state.returns  = d.returns;
+    state.nwAssets = d.nwAssets;
+    state.nwLiab   = d.nwLiab;
+
+    document.getElementById('name-a').value  = d.clientNameA || 'Client A';
+    document.getElementById('name-b').value  = d.clientNameB || 'Client B';
+    document.getElementById('f-client').value = client.name;
+    document.getElementById('f-date').value   = client.review_date || '';
+    document.getElementById('f-acct').value   = client.account_number || '';
+
+    document.getElementById('upload-screen').style.display    = 'none';
+    document.getElementById('progress-screen').style.display  = 'none';
+    document.getElementById('app-screen').style.display       = 'block';
+    document.getElementById('topbar-client').textContent      = client.name;
+    document.getElementById('btn-topbar-save').style.display  = 'block';
+
+    renderAll();
+    loadClientList();
+    showToast('Loaded ' + client.name);
+  } catch {
+    showToast('Failed to load client');
+  }
+}
+
+async function saveClient() {
+  const name          = (document.getElementById('f-client').value || '').trim() || 'Unnamed Client';
+  const reviewDate    = (document.getElementById('f-date').value   || '').trim();
+  const accountNumber = (document.getElementById('f-acct').value   || '').trim();
+
+  const payload = {
+    name,
+    account_number: accountNumber,
+    review_date: reviewDate,
+    data: {
+      holdings:    state.holdings,
+      returns:     state.returns,
+      nwAssets:    state.nwAssets,
+      nwLiab:      state.nwLiab,
+      clientNameA: document.getElementById('name-a').value,
+      clientNameB: document.getElementById('name-b').value,
+    }
+  };
+
+  try {
+    const method = state.currentClientId ? 'PUT' : 'POST';
+    const url    = state.currentClientId ? '/api/clients/' + state.currentClientId : '/api/clients';
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error('Save failed');
+    const saved = await r.json();
+    state.currentClientId = saved.id;
+    document.getElementById('topbar-client').textContent = name;
+    document.getElementById('btn-topbar-save').style.display = 'block';
+    loadClientList();
+    showToast('Saved');
+  } catch {
+    showToast('Save failed');
+  }
+}
+
+async function deleteClient(id, e) {
+  e.stopPropagation();
+  if (!confirm('Delete this client? This cannot be undone.')) return;
+  try {
+    await fetch('/api/clients/' + id, { method: 'DELETE' });
+    if (state.currentClientId === id) state.currentClientId = null;
+    loadClientList();
+    showToast('Deleted');
+  } catch {
+    showToast('Delete failed');
+  }
+}
+
+function newReview() {
+  state.currentClientId = null;
+  state.holdings = null;
+  state.returns  = null;
+  state.files    = { holdings: null, returns: null };
+
+  ['dz-holdings','dz-returns'].forEach(id => document.getElementById(id).classList.remove('done'));
+  document.getElementById('fname-holdings').textContent = '';
+  document.getElementById('fname-returns').textContent  = '';
+  document.getElementById('icon-holdings').textContent  = '📊';
+  document.getElementById('icon-returns').textContent   = '📄';
+  document.getElementById('btn-build').disabled         = true;
+  document.getElementById('topbar-client').textContent  = '';
+  document.getElementById('btn-topbar-save').style.display = 'none';
+
+  document.getElementById('upload-screen').style.display   = 'flex';
+  document.getElementById('progress-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display      = 'none';
+
+  loadClientList();
+}
+
+// ── HELPERS ──
+let _searchTimer;
+function debounceSearch(val) {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => loadClientList(val), 280);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let _toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// Load client list on startup
+loadClientList();
 </script>
 </body>
 </html>
