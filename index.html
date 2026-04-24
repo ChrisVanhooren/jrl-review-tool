@@ -368,6 +368,20 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
   font-family: 'DM Sans', sans-serif; transition: border-color 0.15s, color 0.15s;
 }
 .rebal-ghost-btn:hover { border-color: rgba(255,255,255,0.55); color: #fff; }
+.rebal-new-input {
+  border: none; background: transparent;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; color: var(--ink);
+  width: 100%; outline: none; padding: 0;
+}
+.rebal-new-input:focus { background: #fffdf7; outline: 1px solid var(--gold); border-radius: 3px; padding: 1px 4px; }
+.rebal-new-input::placeholder { color: #bbb; font-style: italic; }
+.rebal-del {
+  background: none; border: none; color: var(--muted); font-size: 1.05rem;
+  line-height: 1; cursor: pointer; padding: 0 2px; opacity: 0;
+  transition: opacity 0.15s, color 0.15s; vertical-align: middle;
+}
+tr:hover .rebal-del { opacity: 1; }
+.rebal-del:hover { color: var(--danger); }
 
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
@@ -711,6 +725,7 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
       <div class="card-head">
         <h3>Portfolio Rebalancer</h3>
         <div style="display:flex;gap:8px;align-items:center;">
+          <button class="rebal-ghost-btn" onclick="addRebalPosition()">+ Add Position</button>
           <button class="rebal-ghost-btn" onclick="resetRebalTargets()">Reset to Current</button>
           <span class="badge">Internal Use Only</span>
         </div>
@@ -782,6 +797,7 @@ const state = {
   notes: '',
   chartOpts: { mvYMin: '', mvYMax: '', showInvested: true },
   rebalance: {},
+  rebalanceNew: [],
   rebalanceNotes: '',
 };
 
@@ -1476,6 +1492,34 @@ function renderAdvisor() {
     tbody.appendChild(tr);
   });
 
+  // New positions
+  const newPositions = state.rebalanceNew || [];
+  if (newPositions.length) {
+    const sepRow = document.createElement('tr');
+    sepRow.innerHTML = `<td colspan="7" style="padding:5px 10px 3px;font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:#f8f5f0;border-top:2px dashed var(--border);">New Positions</td>`;
+    tbody.appendChild(sepRow);
+    newPositions.forEach((pos, i) => {
+      totalTargetPct += pos.targetPct;
+      const actionDollars = pos.targetPct / 100 * totalMV;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding:5px 10px;"><input type="text" class="rebal-new-input" placeholder="Fund name…" value="${escHtml(pos.desc)}" oninput="state.rebalanceNew[${i}].desc=this.value"></td>
+        <td style="padding:5px 10px;"><input type="text" class="rebal-new-input" placeholder="Asset class…" value="${escHtml(pos.assetClass)}" oninput="state.rebalanceNew[${i}].assetClass=this.value" style="color:var(--navy-mid);font-weight:500;font-size:0.76rem;"></td>
+        <td class="r" style="color:var(--muted);">$0.00</td>
+        <td class="r" style="color:var(--muted);">0.00%</td>
+        <td class="r" style="padding-top:4px;padding-bottom:4px;">
+          <input class="rebal-input" type="number" step="0.1" min="0" max="100"
+            value="${pos.targetPct.toFixed(2)}"
+            data-nidx="${i}"
+            onchange="handleNewRebalInput(this)">
+        </td>
+        <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
+        <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
   const tfr = document.createElement('tr');
   tfr.className = 'tfoot-row';
   const tColor = Math.abs(totalTargetPct - 100) < 0.05 ? 'var(--success)' : totalTargetPct > 100 ? 'var(--danger)' : '#b45309';
@@ -1503,15 +1547,17 @@ function updateRebalStats(totalMV, totalTargetPct) {
       const currentPct = row.mv / totalMV * 100;
       totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
     });
+    (state.rebalanceNew || []).forEach(pos => { totalTargetPct += pos.targetPct; });
   }
   const remaining = 100 - totalTargetPct;
   const allocColor = Math.abs(remaining) < 0.05 ? 'var(--success)' : Math.abs(remaining) < 5 ? '#b45309' : 'var(--danger)';
+  const newCount = (state.rebalanceNew || []).length;
   const statsEl = document.getElementById('rebal-stats');
   if (statsEl) statsEl.innerHTML = `
     <div class="stat-card"><div class="lbl">Portfolio Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
     <div class="stat-card"><div class="lbl">Total Allocated</div><div class="val" style="color:${allocColor}">${totalTargetPct.toFixed(2)}%</div></div>
     <div class="stat-card"><div class="lbl">Remaining to Allocate</div><div class="val" style="color:${Math.abs(remaining) < 0.05 ? 'var(--success)' : 'var(--danger)'}">${remaining >= 0 ? '+' : ''}${remaining.toFixed(2)}%</div></div>
-    <div class="stat-card"><div class="lbl">Positions Adjusted</div><div class="val">${Object.keys(state.rebalance).length}</div></div>
+    <div class="stat-card"><div class="lbl">New Positions</div><div class="val">${newCount}</div></div>
   `;
   const totalCell = document.getElementById('rebal-total-target');
   if (totalCell) {
@@ -1549,12 +1595,60 @@ function handleRebalInput(input) {
       }
     }
   });
+  (state.rebalanceNew || []).forEach(pos => { totalTargetPct += pos.targetPct; });
 
   updateRebalStats(totalMV, totalTargetPct);
 }
 
+function handleNewRebalInput(input) {
+  const i = parseInt(input.dataset.nidx);
+  const val = parseFloat(input.value);
+  if (!isNaN(val) && val >= 0) state.rebalanceNew[i].targetPct = val;
+
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  const tPct = state.rebalanceNew[i].targetPct;
+  const actionDollars = tPct / 100 * totalMV;
+
+  const diffCell = document.querySelector(`[data-new-diff="${i}"]`);
+  if (diffCell) {
+    diffCell.textContent = (tPct >= 0 ? '+' : '') + tPct.toFixed(2) + '%';
+    diffCell.className = 'r ' + (tPct > 0 ? 'pos' : '');
+  }
+  const actionSpan = document.querySelector(`[data-new-action="${i}"]`);
+  if (actionSpan) {
+    actionSpan.textContent = (actionDollars >= 0 ? '+' : '') + fmt$(actionDollars);
+    actionSpan.className = tPct > 0 ? 'pos' : '';
+  }
+
+  let totalTargetPct = 0;
+  h.forEach(row => {
+    const key = row.desc + '|' + row.symbol;
+    const currentPct = row.mv / totalMV * 100;
+    totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+  });
+  (state.rebalanceNew || []).forEach(pos => { totalTargetPct += pos.targetPct; });
+  updateRebalStats(totalMV, totalTargetPct);
+}
+
+function addRebalPosition() {
+  if (!state.rebalanceNew) state.rebalanceNew = [];
+  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0 });
+  renderAdvisor();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.rebal-new-input');
+    if (inputs.length) inputs[inputs.length - 2].focus();
+  }, 30);
+}
+
+function removeRebalPosition(i) {
+  (state.rebalanceNew || []).splice(i, 1);
+  renderAdvisor();
+}
+
 function resetRebalTargets() {
   state.rebalance = {};
+  state.rebalanceNew = [];
   renderAdvisor();
 }
 
@@ -2003,6 +2097,7 @@ async function loadClient(id) {
       if (si)   si.checked = d.chartOpts.showInvested !== false;
     }
     state.rebalance = d.rebalance || {};
+    state.rebalanceNew = d.rebalanceNew || [];
     state.rebalanceNotes = d.rebalanceNotes || '';
     const rebalNotesEl = document.getElementById('rebal-notes');
     if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
@@ -2040,6 +2135,7 @@ async function saveClient() {
       notes:          document.getElementById('f-notes')?.value || '',
       chartOpts:      state.chartOpts,
       rebalance:      state.rebalance,
+      rebalanceNew:   state.rebalanceNew,
       rebalanceNotes: state.rebalanceNotes,
     }
   };
@@ -2091,6 +2187,7 @@ function newReview() {
   const notesEl = document.getElementById('f-notes');
   if (notesEl) notesEl.value = '';
   state.rebalance = {};
+  state.rebalanceNew = [];
   state.rebalanceNotes = '';
   const rebalNotesEl = document.getElementById('rebal-notes');
   if (rebalNotesEl) rebalNotesEl.value = '';
