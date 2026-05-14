@@ -641,7 +641,7 @@ tr:hover .rebal-del { opacity: 1; }
           <thead><tr>
             <th>Description</th><th>Symbol</th><th>Asset Class</th>
             <th class="r">% of Total</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Book Value</th>
-            <th class="r">Market Value</th><th class="r">Income</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th>
+            <th class="r">Market Value</th><th class="r">Income</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th><th style="width:24px;"></th>
           </tr></thead>
           <tbody id="holdings-tbody"></tbody>
         </table>
@@ -1303,6 +1303,10 @@ function renderHoldings() {
     const glpctCell = eCell('r ' + clsSign(row.glpct), fmtPct(row.glpct), 'glpct');
     tr.appendChild(glpctCell);
 
+    const delTd = document.createElement('td');
+    delTd.innerHTML = `<button class="rebal-del" onclick="deleteHolding(${i})" title="Remove row">×</button>`;
+    tr.appendChild(delTd);
+
     tbody.appendChild(tr);
   });
 
@@ -1322,6 +1326,11 @@ function renderHoldings() {
   tbody.appendChild(tfr);
 
   renderAlloc();
+}
+
+function deleteHolding(i) {
+  state.holdings.splice(i, 1);
+  renderHoldings();
 }
 
 function handleHoldingEdit(td) {
