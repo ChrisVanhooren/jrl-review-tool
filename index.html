@@ -382,6 +382,50 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
 }
 tr:hover .rebal-del { opacity: 1; }
 .rebal-del:hover { color: var(--danger); }
+.rebal-replace-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 4px; padding: 1px 7px; font-size: 0.7rem; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; transition: border-color 0.15s, color 0.15s;
+  opacity: 0; white-space: nowrap;
+}
+tr:hover .rebal-replace-btn { opacity: 1; }
+.rebal-replace-btn:hover { border-color: var(--gold); color: var(--navy); }
+
+/* ── AI CHAT ── */
+.ai-chat-wrap { display: flex; flex-direction: column; gap: 0; height: 420px; }
+.ai-messages {
+  flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--cream); border-radius: 6px 6px 0 0; border: 1px solid var(--border); border-bottom: none;
+}
+.ai-msg { display: flex; gap: 8px; align-items: flex-start; max-width: 92%; }
+.ai-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.ai-msg-bubble {
+  background: var(--white); border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 12px; font-size: 0.83rem; line-height: 1.5; color: var(--ink);
+}
+.ai-msg.user .ai-msg-bubble { background: var(--navy); color: var(--white); border-color: var(--navy); }
+.ai-msg-avatar {
+  width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 0.7rem; font-weight: 600; flex-shrink: 0; margin-top: 2px;
+}
+.ai-msg.user .ai-msg-avatar { background: var(--gold); color: var(--navy); }
+.ai-msg.assistant .ai-msg-avatar { background: var(--navy); color: var(--gold); }
+.ai-input-row {
+  display: flex; gap: 0; border: 1px solid var(--border); border-radius: 0 0 6px 6px; overflow: hidden;
+}
+.ai-input-row textarea {
+  flex: 1; border: none; padding: 10px 14px; font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem; resize: none; outline: none; background: var(--white);
+  color: var(--ink); min-height: 44px; max-height: 120px; line-height: 1.4;
+}
+.ai-send-btn {
+  background: var(--navy); color: var(--white); border: none; padding: 0 18px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; cursor: pointer;
+  transition: background 0.15s; white-space: nowrap;
+}
+.ai-send-btn:hover { background: var(--navy-mid); }
+.ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-thinking { color: var(--muted); font-style: italic; font-size: 0.8rem; padding: 4px 0; }
 
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
@@ -750,6 +794,31 @@ tr:hover .rebal-del { opacity: 1; }
       <div class="card-body">
         <div class="field-label" style="margin-bottom:6px;">Rebalancing notes / rationale</div>
         <textarea class="notes" id="rebal-notes" placeholder="e.g. Trim RBC Core Plus Bond from 11% → 5%, redeploy to US Equity Fund…" oninput="state.rebalanceNotes=this.value" style="min-height:130px;"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>AI Portfolio Assistant</h3>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">Knows this client's portfolio — ask anything</div>
+        </div>
+        <span class="badge">Internal Use Only</span>
+      </div>
+      <div class="card-body">
+        <div class="ai-chat-wrap">
+          <div class="ai-messages" id="ai-messages">
+            <div class="ai-msg assistant">
+              <div class="ai-msg-avatar">AI</div>
+              <div class="ai-msg-bubble">Hi! I have full context on this client's portfolio. Ask me anything — valuation questions, sector analysis, rebalancing rationale, or whether it's time to exit a position.</div>
+            </div>
+          </div>
+          <div class="ai-input-row">
+            <textarea id="ai-input" placeholder="e.g. Is now a good time to exit McDonald's? What else could we replace it with?" rows="1"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAiMessage();}"></textarea>
+            <button class="ai-send-btn" id="ai-send-btn" onclick="sendAiMessage()">Send</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1496,7 +1565,7 @@ function renderAdvisor() {
           onchange="handleRebalInput(this)">
       </td>
       <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
-      <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}</td>
+      <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}&nbsp;<button class="rebal-replace-btn" onclick="replaceHolding('${escHtml(key)}','${escHtml(assetClass)}')" title="Zero this out and add a replacement">Replace →</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -1659,6 +1728,81 @@ function resetRebalTargets() {
   state.rebalance = {};
   state.rebalanceNew = [];
   renderAdvisor();
+}
+
+function replaceHolding(key, assetClass) {
+  if (!state.rebalance) state.rebalance = {};
+  state.rebalance[key] = 0;
+  if (!state.rebalanceNew) state.rebalanceNew = [];
+  state.rebalanceNew.push({ desc: '', assetClass: assetClass || '', targetPct: 0 });
+  renderAdvisor();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.rebal-new-input');
+    if (inputs.length) inputs[inputs.length - 2].focus();
+  }, 30);
+}
+
+// ── AI CHAT ──
+const aiMessages = [];
+
+function buildPortfolioContext() {
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0);
+  return {
+    client: document.getElementById('f-client')?.value || '',
+    date: document.getElementById('f-date')?.value || '',
+    totalMV,
+    holdings: h.map(r => ({
+      desc: r.desc, symbol: r.symbol, assetClass: r.assetClass,
+      mv: r.mv, pct: totalMV > 0 ? r.mv / totalMV * 100 : 0
+    })),
+    notes: state.rebalanceNotes || ''
+  };
+}
+
+async function sendAiMessage() {
+  const input = document.getElementById('ai-input');
+  const btn = document.getElementById('ai-send-btn');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  btn.disabled = true;
+
+  aiMessages.push({ role: 'user', content: text });
+  appendAiMsg('user', text);
+  const thinkingEl = appendAiMsg('assistant', '...', true);
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: aiMessages, portfolio: buildPortfolioContext() })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    thinkingEl.querySelector('.ai-msg-bubble').textContent = data.reply;
+    thinkingEl.querySelector('.ai-msg-bubble').classList.remove('ai-thinking');
+    aiMessages.push({ role: 'assistant', content: data.reply });
+  } catch (err) {
+    thinkingEl.querySelector('.ai-msg-bubble').textContent = 'Error: ' + err.message;
+  }
+
+  btn.disabled = false;
+  input.focus();
+}
+
+function appendAiMsg(role, text, thinking = false) {
+  const wrap = document.getElementById('ai-messages');
+  const el = document.createElement('div');
+  el.className = 'ai-msg ' + role;
+  el.innerHTML = `
+    <div class="ai-msg-avatar">${role === 'user' ? 'You' : 'AI'}</div>
+    <div class="ai-msg-bubble${thinking ? ' ai-thinking' : ''}">${escHtml(text)}</div>
+  `;
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return el;
 }
 
 // ── RETURNS ──
