@@ -784,6 +784,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <th class="r">Target %</th>
             <th class="r">Difference</th>
             <th class="r">To Buy / Sell</th>
+            <th>Advisor Notes</th>
           </tr></thead>
           <tbody id="rebal-tbody"></tbody>
         </table>
@@ -868,6 +869,7 @@ const state = {
   rebalance: {},
   rebalanceNew: [],
   rebalanceNotes: '',
+  rebalanceRowNotes: {},
 };
 
 // ── DRAG / DROP ──
@@ -1566,6 +1568,7 @@ function renderAdvisor() {
       </td>
       <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
       <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}&nbsp;<button class="rebal-replace-btn" onclick="replaceHolding('${escHtml(key)}','${escHtml(assetClass)}')" title="Zero this out and add a replacement">Replace →</button></td>
+      <td><input class="rebal-new-input" type="text" placeholder="e.g. Trimming — overvalued vs sector peers" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes['${escHtml(key)}']=this.value" style="width:260px;"></td>
     `;
     tbody.appendChild(tr);
   });
@@ -1593,6 +1596,7 @@ function renderAdvisor() {
         </td>
         <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
         <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
+        <td><input class="rebal-new-input" type="text" placeholder="e.g. Adding growth exposure — replacing MCD" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value" style="width:260px;"></td>
       `;
       tbody.appendChild(tr);
     });
@@ -2252,6 +2256,7 @@ async function loadClient(id) {
     state.rebalance = d.rebalance || {};
     state.rebalanceNew = d.rebalanceNew || [];
     state.rebalanceNotes = d.rebalanceNotes || '';
+    state.rebalanceRowNotes = d.rebalanceRowNotes || {};
     const rebalNotesEl = document.getElementById('rebal-notes');
     if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
 
@@ -2287,9 +2292,10 @@ async function saveClient() {
       clientNameB: document.getElementById('name-b').value,
       notes:          document.getElementById('f-notes')?.value || '',
       chartOpts:      state.chartOpts,
-      rebalance:      state.rebalance,
-      rebalanceNew:   state.rebalanceNew,
-      rebalanceNotes: state.rebalanceNotes,
+      rebalance:         state.rebalance,
+      rebalanceNew:      state.rebalanceNew,
+      rebalanceNotes:    state.rebalanceNotes,
+      rebalanceRowNotes: state.rebalanceRowNotes,
     }
   };
 
@@ -2342,6 +2348,7 @@ function newReview() {
   state.rebalance = {};
   state.rebalanceNew = [];
   state.rebalanceNotes = '';
+  state.rebalanceRowNotes = {};
   const rebalNotesEl = document.getElementById('rebal-notes');
   if (rebalNotesEl) rebalNotesEl.value = '';
   state.chartOpts = { mvYMin: '', mvYMax: '', showInvested: true };
