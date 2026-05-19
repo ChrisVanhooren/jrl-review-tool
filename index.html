@@ -427,6 +427,64 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-thinking { color: var(--muted); font-style: italic; font-size: 0.8rem; padding: 4px 0; }
 
+/* ── AGENT BUBBLE ── */
+.agent-bubble { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.agent-bubble-btn {
+  width: 52px; height: 52px; border-radius: 50%; background: var(--navy); border: 2px solid var(--gold);
+  color: var(--gold); font-family: 'DM Serif Display', serif; font-size: 0.95rem; font-weight: 700;
+  cursor: pointer; box-shadow: 0 4px 18px rgba(15,31,61,0.28); transition: transform 0.2s, box-shadow 0.2s;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: 0.03em;
+}
+.agent-bubble-btn:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(15,31,61,0.38); }
+.agent-panel {
+  width: 360px; background: var(--white); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(15,31,61,0.18);
+  flex-direction: column; overflow: hidden;
+}
+.agent-panel-head {
+  background: var(--navy); padding: 12px 16px;
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.agent-panel-head h4 { color: var(--white); font-size: 0.88rem; font-weight: 600; margin: 0; }
+.agent-panel-head .agent-head-sub { color: var(--gold-light); font-size: 0.71rem; margin-top: 2px; }
+.agent-close-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 1rem; cursor: pointer; padding: 2px 6px; line-height: 1; }
+.agent-close-btn:hover { color: white; }
+.agent-messages {
+  flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column;
+  gap: 8px; min-height: 0; max-height: 320px;
+}
+.agent-msg { display: flex; gap: 8px; align-items: flex-start; max-width: 96%; }
+.agent-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.agent-msg-bubble {
+  background: var(--cream); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 0.8rem; line-height: 1.5; color: var(--ink);
+}
+.agent-msg.user .agent-msg-bubble { background: var(--navy); color: var(--white); border-color: var(--navy); }
+.agent-msg-avatar {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 0.6rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+}
+.agent-msg.user .agent-msg-avatar { background: var(--gold); color: var(--navy); }
+.agent-msg.assistant .agent-msg-avatar { background: var(--navy); color: var(--gold); }
+.agent-action-tag {
+  font-size: 0.71rem; color: var(--success); background: #f0faf6;
+  border: 1px solid #a7f3d0; border-radius: 4px; padding: 1px 6px;
+  margin: 1px 2px; display: inline-block;
+}
+.agent-input-row { display: flex; border-top: 1px solid var(--border); flex-shrink: 0; }
+.agent-input-row textarea {
+  flex: 1; border: none; padding: 10px 12px; font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem; resize: none; outline: none; background: var(--white);
+  color: var(--ink); min-height: 40px; max-height: 90px; line-height: 1.4;
+}
+.agent-send-btn {
+  background: var(--navy); color: var(--white); border: none; padding: 0 14px;
+  font-size: 0.8rem; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  transition: background 0.15s; white-space: nowrap;
+}
+.agent-send-btn:hover { background: var(--navy-mid); }
+.agent-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: 1fr 1fr; }
@@ -2060,7 +2118,7 @@ function renderFinal() {
         plugins: { legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } } },
         scales: {
           x: { ticks: { font:{size:9} }, grid: { display: false } },
-          y: { min: mvYMin, max: mvYMax, ticks: { font:{size:9}, callback: v => '$'+Math.round(v/1000)+'k' }, grid: { color:'#f3f0eb' } }
+          y: { min: mvYMin, max: mvYMax, ticks: { font:{size:9}, callback: v => { if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; } }, grid: { color:'#f3f0eb' } }
         }
       }
     });
@@ -2388,6 +2446,121 @@ function showToast(msg) {
 
 // Load client list on startup
 loadClientList();
+
+// ── AGENT BUBBLE ──
+let _agentOpen = false;
+const agentMessages = [];
+
+function toggleAgentPanel() {
+  _agentOpen = !_agentOpen;
+  const panel = document.getElementById('agent-panel');
+  panel.style.display = _agentOpen ? 'flex' : 'none';
+  if (_agentOpen) setTimeout(() => document.getElementById('agent-input').focus(), 50);
+}
+
+function appendAgentMsg(role, text, thinking = false) {
+  const wrap = document.getElementById('agent-messages');
+  const el = document.createElement('div');
+  el.className = 'agent-msg ' + role;
+  el.innerHTML = `
+    <div class="agent-msg-avatar">${role === 'user' ? 'You' : 'AI'}</div>
+    <div class="agent-msg-bubble${thinking ? ' ai-thinking' : ''}">${escHtml(text)}</div>`;
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return el;
+}
+
+function applyAgentActions(actions) {
+  let needsHoldings = false, needsFinal = false;
+  for (const a of actions) {
+    if (a.tool === 'delete_holding') {
+      const idx = state.holdings.findIndex(h => h.desc.toLowerCase().trim() === a.input.desc.toLowerCase().trim());
+      if (idx !== -1) { state.holdings.splice(idx, 1); needsHoldings = true; }
+    } else if (a.tool === 'update_holding') {
+      const h = state.holdings.find(h => h.desc.toLowerCase().trim() === a.input.desc.toLowerCase().trim());
+      if (h) {
+        const numFields = ['mv','bookValue','quantity','price'];
+        h[a.input.field] = numFields.includes(a.input.field) ? (parseFloat(a.input.value) || 0) : a.input.value;
+        needsHoldings = true;
+      }
+    } else if (a.tool === 'update_chart_yaxis') {
+      if (a.input.min != null) { state.chartOpts.mvYMin = String(a.input.min); const el = document.getElementById('chart-ymin'); if (el) el.value = state.chartOpts.mvYMin; }
+      if (a.input.max != null) { state.chartOpts.mvYMax = String(a.input.max); const el = document.getElementById('chart-ymax'); if (el) el.value = state.chartOpts.mvYMax; }
+      needsFinal = true;
+    }
+  }
+  if (needsHoldings) { renderHoldings(); needsFinal = true; }
+  if (needsFinal) renderFinal();
+}
+
+async function sendAgentMessage() {
+  const input = document.getElementById('agent-input');
+  const btn = document.getElementById('agent-send-btn');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  btn.disabled = true;
+  agentMessages.push({ role: 'user', content: text });
+  appendAgentMsg('user', text);
+  const thinkingEl = appendAgentMsg('assistant', 'Working...', true);
+  const bubble = thinkingEl.querySelector('.agent-msg-bubble');
+  try {
+    const res = await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: agentMessages, portfolio: buildPortfolioContext() })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.actions && data.actions.length > 0) {
+      applyAgentActions(data.actions);
+      const tags = data.actions.map(a => {
+        if (a.tool === 'delete_holding') return `<span class="agent-action-tag">Deleted "${escHtml(a.input.desc)}"</span>`;
+        if (a.tool === 'update_holding') return `<span class="agent-action-tag">Updated ${escHtml(a.input.desc)}: ${a.input.field}</span>`;
+        if (a.tool === 'update_chart_yaxis') return `<span class="agent-action-tag">Chart Y-axis updated</span>`;
+        return '';
+      }).join(' ');
+      bubble.innerHTML = tags + (data.reply ? `<div style="margin-top:5px;">${escHtml(data.reply)}</div>` : '');
+    } else {
+      bubble.textContent = data.reply || 'Done.';
+    }
+    bubble.classList.remove('ai-thinking');
+    agentMessages.push({ role: 'assistant', content: data.reply || 'Done.' });
+  } catch (err) {
+    bubble.textContent = 'Error: ' + err.message;
+    bubble.classList.remove('ai-thinking');
+  }
+  btn.disabled = false;
+  input.focus();
+  document.getElementById('agent-messages').scrollTop = 9999;
+}
 </script>
+
+<div class="agent-bubble" id="agent-bubble">
+  <div class="agent-panel" id="agent-panel" style="display:none;">
+    <div class="agent-panel-head">
+      <div>
+        <h4>AI Data Assistant</h4>
+        <div class="agent-head-sub">Can edit holdings, fix classes, adjust charts</div>
+      </div>
+      <button class="agent-close-btn" onclick="toggleAgentPanel()">&#x2715;</button>
+    </div>
+    <div class="agent-messages" id="agent-messages">
+      <div class="agent-msg assistant">
+        <div class="agent-msg-avatar">AI</div>
+        <div class="agent-msg-bubble">Hi! I can fix your data directly. Try:<br>
+          &ldquo;Delete the Stocks header row&rdquo;<br>
+          &ldquo;The chart Y-axis doesn&rsquo;t start at zero, fix it&rdquo;<br>
+          &ldquo;Change McDonald&rsquo;s asset class to US Equities&rdquo;</div>
+      </div>
+    </div>
+    <div class="agent-input-row">
+      <textarea id="agent-input" placeholder="e.g. Delete the Stocks row, it's a header…" rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessage();}"></textarea>
+      <button class="agent-send-btn" id="agent-send-btn" onclick="sendAgentMessage()">Send</button>
+    </div>
+  </div>
+  <button class="agent-bubble-btn" onclick="toggleAgentPanel()" title="AI Data Assistant">AI</button>
+</div>
 </body>
 </html>
