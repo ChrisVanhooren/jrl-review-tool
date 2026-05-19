@@ -928,6 +928,7 @@ const state = {
   rebalanceNew: [],
   rebalanceNotes: '',
   rebalanceRowNotes: {},
+  rawImport: null,
 };
 
 // ── DRAG / DROP ──
@@ -1053,6 +1054,8 @@ async function parseHoldings(file) {
     return;
   }
 
+  const _importLog = { filename: file.name, importedAt: new Date().toISOString(), skipped: [] };
+
   const headers = rows[headerRow].map(c => String(c || '').toLowerCase().trim());
   const idx = {
     desc:    headers.findIndex(h => h.includes('description')),
@@ -1071,9 +1074,16 @@ async function parseHoldings(file) {
     const r = rows[i];
     if (!r || !r[idx.desc]) continue;
     const desc = String(r[idx.desc] || '').trim();
-    if (!desc || desc.toLowerCase().includes('total') || desc.toLowerCase().includes('mutual funds') || desc.toLowerCase() === 'cash balance') continue;
+    if (!desc) continue;
+    if (desc.toLowerCase().includes('total') || desc.toLowerCase().includes('mutual funds') || desc.toLowerCase() === 'cash balance') {
+      _importLog.skipped.push({ desc, reason: 'header or total row' });
+      continue;
+    }
     const mv = parseFloat(r[idx.mv]) || 0;
-    if (mv === 0 && !desc.includes('Cash')) continue;
+    if (mv === 0 && !desc.includes('Cash')) {
+      _importLog.skipped.push({ desc, reason: 'zero market value' });
+      continue;
+    }
 
     const sym = String(r[idx.symbol] || '—').trim();
     holdings.push({
@@ -1101,6 +1111,10 @@ async function parseHoldings(file) {
       if (h) h.cat = catCell;
     }
   }
+
+  _importLog.importedCount = holdings.length;
+  state.rawImport = state.rawImport || {};
+  state.rawImport.holdings = _importLog;
 
   state.holdings = holdings.length > 0 ? holdings : getDefaultHoldings();
 }
@@ -1206,6 +1220,7 @@ async function parseReturnsXLSX(file) {
 
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const result = [];
+  const _retLog = { filename: file.name, importedAt: new Date().toISOString(), skipped: [] };
 
   for (const row of rows) {
     if (!row[0]) continue;
@@ -1224,8 +1239,14 @@ async function parseReturnsXLSX(file) {
         spx: parseFloat(row[8]) || 0,
         tsx: parseFloat(row[9]) || 0,
       });
+    } else if (cell && !/period|month|date|beginning|ending|inflow|outflow|ror|return|benchmark/i.test(cell)) {
+      _retLog.skipped.push({ row: cell, reason: 'no matching month name' });
     }
   }
+
+  _retLog.importedCount = result.length;
+  state.rawImport = state.rawImport || {};
+  state.rawImport.returns = _retLog;
 
   state.returns = result.length > 0 ? result : getDefaultReturns();
 }
@@ -1818,7 +1839,8 @@ function buildPortfolioContext() {
       desc: r.desc, symbol: r.symbol, assetClass: r.assetClass,
       mv: r.mv, pct: totalMV > 0 ? r.mv / totalMV * 100 : 0
     })),
-    notes: state.rebalanceNotes || ''
+    notes: state.rebalanceNotes || '',
+    rawImport: state.rawImport || null
   };
 }
 
@@ -2315,6 +2337,7 @@ async function loadClient(id) {
     state.rebalanceNew = d.rebalanceNew || [];
     state.rebalanceNotes = d.rebalanceNotes || '';
     state.rebalanceRowNotes = d.rebalanceRowNotes || {};
+    state.rawImport = d.rawImport || null;
     const rebalNotesEl = document.getElementById('rebal-notes');
     if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
 
@@ -2354,6 +2377,7 @@ async function saveClient() {
       rebalanceNew:      state.rebalanceNew,
       rebalanceNotes:    state.rebalanceNotes,
       rebalanceRowNotes: state.rebalanceRowNotes,
+      rawImport:         state.rawImport,
     }
   };
 
@@ -2407,6 +2431,7 @@ function newReview() {
   state.rebalanceNew = [];
   state.rebalanceNotes = '';
   state.rebalanceRowNotes = {};
+  state.rawImport = null;
   const rebalNotesEl = document.getElementById('rebal-notes');
   if (rebalNotesEl) rebalNotesEl.value = '';
   state.chartOpts = { mvYMin: '', mvYMax: '', showInvested: true };

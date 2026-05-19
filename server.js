@@ -183,14 +183,25 @@ app.post('/api/agent', async (req, res) => {
   if (!anthropic) return res.status(503).json({ error: 'AI not configured — set ANTHROPIC_API_KEY env var.' });
   try {
     const { messages, portfolio } = req.body;
+    const hi = portfolio.rawImport?.holdings;
+    const ri = portfolio.rawImport?.returns;
+    const importAudit = [
+      hi ? `Holdings file "${hi.filename}" (imported ${new Date(hi.importedAt).toLocaleDateString()}): ${hi.importedCount} rows imported${hi.skipped?.length ? `, ${hi.skipped.length} skipped — ${hi.skipped.map(s => `"${s.desc}" (${s.reason})`).join('; ')}` : ', none skipped'}.` : 'No holdings file import on record.',
+      ri ? `Returns file "${ri.filename}": ${ri.importedCount} periods imported${ri.skipped?.length ? `, ${ri.skipped.length} unrecognised rows` : ''}.` : 'No returns file import on record.'
+    ].join('\n');
+
     const systemPrompt = `You are an AI data assistant for a financial advisor at JRL Private Wealth. You have tools to directly modify the client's portfolio data in real time.
 
 When the advisor asks you to fix, remove, or update anything in the portfolio — use the appropriate tool immediately. Be decisive and act.
+When asked to audit or verify an import, compare the import log to current holdings and explain any discrepancies clearly.
 
 Current portfolio: ${portfolio.client || 'Unknown client'}
 Total MV: $${(portfolio.totalMV || 0).toLocaleString('en-CA', { maximumFractionDigits: 0 })}
 Holdings (${(portfolio.holdings || []).length} rows):
 ${(portfolio.holdings || []).map(h => `- "${h.desc}"${h.symbol ? ' (' + h.symbol + ')' : ''}: MV $${(h.mv || 0).toLocaleString('en-CA', { maximumFractionDigits: 0 })}, ${h.assetClass || 'no asset class'}`).join('\n')}
+
+Import audit:
+${importAudit}
 
 After using tools, give a short confirmation (one sentence). If you can't find a row, say so clearly.`;
 
