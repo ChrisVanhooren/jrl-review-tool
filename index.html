@@ -889,6 +889,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="rebal-ghost-btn" onclick="addRebalPosition()">+ Add Position</button>
           <button class="rebal-ghost-btn" onclick="resetRebalTargets()">Reset to Current</button>
+          <button class="rebal-ghost-btn" onclick="showTradeList()" style="border-color:rgba(255,255,255,0.5);color:#fff;">&#x2398; Trade Summary</button>
           <span class="badge">Internal Use Only</span>
         </div>
       </div>
@@ -990,6 +991,23 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   </div><!-- end main-content -->
 </div><!-- end main-layout -->
 <div class="toast" id="toast"></div>
+
+<!-- Trade Summary Modal -->
+<div id="trade-modal" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.45);z-index:10001;align-items:center;justify-content:center;" onclick="if(event.target===this)closeTradeList()">
+  <div style="width:620px;max-width:calc(100vw - 48px);max-height:90vh;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(15,31,61,0.25);display:flex;flex-direction:column;overflow:hidden;">
+    <div style="background:var(--navy);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div>
+        <h4 style="color:#fff;margin:0;font-size:0.92rem;font-weight:600;">Trade Instructions</h4>
+        <div style="color:var(--gold-light);font-size:0.71rem;margin-top:2px;" id="trade-modal-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="printTradeList()" style="background:var(--gold);color:var(--navy);border:none;border-radius:5px;padding:5px 14px;font-size:0.78rem;font-weight:600;cursor:pointer;">Print</button>
+        <button onclick="closeTradeList()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.1rem;cursor:pointer;padding:2px 6px;line-height:1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">&times;</button>
+      </div>
+    </div>
+    <div id="trade-modal-body" style="padding:24px;overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -2030,6 +2048,111 @@ function resetRebalTargets() {
   state.rebalance = {};
   state.rebalanceNew = [];
   renderAdvisor();
+}
+
+function showTradeList() {
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  const THRESHOLD = 0.05; // ignore changes under 0.05%
+
+  const sells = [], buys = [], newPos = [];
+
+  h.forEach(row => {
+    const key = row.desc + '|' + row.symbol;
+    const currentPct = row.mv / totalMV * 100;
+    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+    const diff = targetPct - currentPct;
+    if (Math.abs(diff) < THRESHOLD) return;
+    const dollars = diff / 100 * totalMV;
+    const note = (state.rebalanceRowNotes || {})[key] || '';
+    const entry = { desc: row.desc, currentPct, targetPct, diff, dollars, note };
+    if (diff < 0) sells.push(entry);
+    else buys.push(entry);
+  });
+
+  (state.rebalanceNew || []).forEach(pos => {
+    if (!pos.desc || pos.targetPct <= 0) return;
+    const dollars = pos.targetPct / 100 * totalMV;
+    newPos.push({ desc: pos.desc, assetClass: pos.assetClass, targetPct: pos.targetPct, dollars, note: pos.note || '' });
+  });
+
+  const clientName = document.getElementById('f-client')?.value || 'Client';
+  const reviewDate = document.getElementById('f-date')?.value || '';
+  const totalBuy  = [...buys, ...newPos].reduce((s, e) => s + Math.abs(e.dollars), 0);
+  const totalSell = sells.reduce((s, e) => s + Math.abs(e.dollars), 0);
+
+  document.getElementById('trade-modal-sub').textContent =
+    clientName + (reviewDate ? ' · ' + reviewDate : '') +
+    ' · ' + (sells.length + buys.length + newPos.length) + ' trade' + (sells.length + buys.length + newPos.length !== 1 ? 's' : '');
+
+  function tradeRow(label, color, desc, from, to, dollars, note) {
+    return `
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:11px 0;border-bottom:1px solid #f0ede8;">
+        <div style="flex-shrink:0;width:46px;text-align:center;padding:3px 0;border-radius:4px;background:${color}15;color:${color};font-size:0.68rem;font-weight:700;letter-spacing:0.06em;">${label}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.84rem;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(desc)}</div>
+          ${from !== null ? `<div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">${from.toFixed(1)}% → ${to.toFixed(1)}%</div>` : `<div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">New position at ${to.toFixed(1)}%</div>`}
+          ${note ? `<div style="font-size:0.74rem;color:#6b7280;margin-top:3px;font-style:italic;">${escHtml(note)}</div>` : ''}
+        </div>
+        <div style="flex-shrink:0;text-align:right;font-size:0.84rem;font-weight:600;color:${color};">${label === 'SELL' ? '-' : '+'}${fmt$(Math.abs(dollars))}</div>
+      </div>`;
+  }
+
+  let html = '';
+
+  if (!sells.length && !buys.length && !newPos.length) {
+    html = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:0.85rem;">No changes — all targets match current allocations.</div>';
+  } else {
+    if (sells.length) {
+      html += `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px;">Sells</div>`;
+      sells.sort((a,b) => a.diff - b.diff).forEach(e => {
+        html += tradeRow('SELL', '#dc2626', e.desc, e.currentPct, e.targetPct, e.dollars, e.note);
+      });
+    }
+    if (buys.length || newPos.length) {
+      html += `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin:${sells.length ? '18px' : '0'} 0 4px;">Buys</div>`;
+      buys.sort((a,b) => b.diff - a.diff).forEach(e => {
+        html += tradeRow('BUY', '#16a34a', e.desc, e.currentPct, e.targetPct, e.dollars, e.note);
+      });
+      newPos.forEach(e => {
+        html += tradeRow('BUY', '#16a34a', e.desc, null, e.targetPct, e.dollars, e.note);
+      });
+    }
+    html += `
+      <div style="display:flex;justify-content:flex-end;gap:24px;margin-top:16px;padding-top:14px;border-top:2px solid var(--border);font-size:0.8rem;">
+        ${totalSell > 0 ? `<span style="color:#dc2626;font-weight:600;">Total sell: -${fmt$(totalSell)}</span>` : ''}
+        ${totalBuy  > 0 ? `<span style="color:#16a34a;font-weight:600;">Total buy: +${fmt$(totalBuy)}</span>`   : ''}
+      </div>`;
+    if (state.rebalanceNotes) {
+      html += `<div style="margin-top:16px;padding:12px 14px;background:#f8f5f0;border-radius:6px;font-size:0.78rem;color:var(--ink);line-height:1.6;"><strong style="display:block;margin-bottom:4px;color:var(--navy);">Advisor Notes</strong>${escHtml(state.rebalanceNotes)}</div>`;
+    }
+  }
+
+  document.getElementById('trade-modal-body').innerHTML = html;
+  document.getElementById('trade-modal').style.display = 'flex';
+}
+
+function closeTradeList() {
+  document.getElementById('trade-modal').style.display = 'none';
+}
+
+function printTradeList() {
+  const body = document.getElementById('trade-modal-body').innerHTML;
+  const sub  = document.getElementById('trade-modal-sub').textContent;
+  const win  = window.open('', '_blank', 'width=700,height=800');
+  win.document.write(`<!DOCTYPE html><html><head><title>Trade Instructions</title>
+    <style>
+      body { font-family: 'Segoe UI', sans-serif; margin: 40px; color: #0f1f3d; }
+      h2 { font-size: 1.1rem; margin: 0 0 4px; }
+      .sub { font-size: 0.78rem; color: #6b7280; margin-bottom: 24px; }
+      @media print { body { margin: 20px; } }
+    </style></head><body>
+    <h2>Trade Instructions</h2>
+    <div class="sub">${escHtml(sub)}</div>
+    ${body}
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 function replaceHolding(key, assetClass) {
