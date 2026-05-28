@@ -1609,11 +1609,12 @@ function handleHoldingEdit(td) {
   const row = state.holdings[i];
   const rawText = td.textContent.trim();
 
-  if (field === 'desc')   { row.desc = rawText; return; }
-  if (field === 'symbol') { row.symbol = rawText; return; }
+  if (field === 'desc')   { row.desc = rawText; renderFinal(); return; }
+  if (field === 'symbol') { row.symbol = rawText; renderFinal(); return; }
   if (field === 'assetClass') {
     row.assetClass = rawText === '—' ? '' : rawText;
     updateHoldingsTotals();
+    renderFinal();
     return;
   }
 
