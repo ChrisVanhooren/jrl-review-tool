@@ -726,7 +726,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <input type="file" accept=".xlsx,.xls" onchange="fileSelected(this,'holdings')">
       <div class="drop-icon" id="icon-holdings">📊</div>
       <div class="drop-label">Holdings file</div>
-      <div class="drop-hint">Bunton Jeffrey NTI3 Excel (.xlsx)</div>
+      <div class="drop-hint">e.g. ClientName_Holdings.xlsx</div>
       <div class="drop-filename" id="fname-holdings"></div>
     </div>
     <div class="drop-zone" id="dz-returns" ondragover="dzOver(event,'dz-returns')" ondragleave="dzLeave('dz-returns')" ondrop="dzDrop(event,'returns')">
@@ -839,9 +839,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head"><h3>Report Details</h3></div>
       <div class="card-body">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
-          <div class="field-row"><div class="field-label">Client name</div><input class="nw-input" id="f-client" value="Jeffrey Bunton" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
+          <div class="field-row"><div class="field-label">Client name</div><input class="nw-input" id="f-client" value="" placeholder="e.g. Jane Smith" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
           <div class="field-row"><div class="field-label">Review date</div><input class="nw-input" id="f-date" value="March 31, 2026" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
-          <div class="field-row"><div class="field-label">Account number</div><input class="nw-input" id="f-acct" value="514839" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
+          <div class="field-row"><div class="field-label">Account number</div><input class="nw-input" id="f-acct" value="" placeholder="e.g. 123456" style="width:100%;text-align:left;" oninput="renderFinal()"></div>
         </div>
       </div>
     </div>
@@ -943,7 +943,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   </div>
 
   <!-- Settings modal overlay -->
-  <div id="settings-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.35);z-index:10000;align-items:flex-end;justify-content:flex-end;padding:90px 24px 24px;" onclick="if(event.target===this)toggleSettings()">
+  <div id="settings-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.35);z-index:10000;align-items:flex-end;justify-content:flex-start;padding:0 24px 88px 24px;" onclick="if(event.target===this)toggleSettings()">
     <div style="width:520px;max-width:calc(100vw - 48px);background:var(--white);border-radius:12px;box-shadow:0 8px 40px rgba(15,31,61,0.22);border:1px solid var(--border);overflow:hidden;">
       <div style="background:var(--navy);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;">
         <div>
@@ -959,6 +959,16 @@ tr:hover .rebal-replace-btn { opacity: 1; }
           <tbody id="product-map-tbody"></tbody>
         </table>
         <button class="rebal-ghost-btn" style="margin-top:12px;" onclick="addProductRow()">+ Add Product</button>
+
+        <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border);">
+          <div style="font-size:0.82rem;font-weight:600;color:var(--navy);margin-bottom:6px;">Holdings Library</div>
+          <p style="font-size:0.81rem;color:var(--muted);margin-bottom:12px;">Pre-load funds so the Advisor Tool autocomplete works even before a client file is imported. Type a name and it will suggest from here.</p>
+          <table class="settings-table">
+            <thead><tr><th>Fund Name</th><th>Symbol</th><th>Asset Class</th><th></th></tr></thead>
+            <tbody id="holdings-library-tbody"></tbody>
+          </table>
+          <button class="rebal-ghost-btn" style="margin-top:12px;" onclick="addLibraryRow()">+ Add Fund</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1010,7 +1020,7 @@ const state = {
   rebalanceNotes: '',
   rebalanceRowNotes: {},
   rawImport: null,
-  settings: { productMap: [] },
+  settings: { productMap: [], holdingsLibrary: [] },
 };
 
 // ── DRAG / DROP ──
@@ -1939,10 +1949,15 @@ function handleRebalDescInput(input, idx) {
   const list = document.getElementById('rebal-ac-' + idx);
   if (!list) return;
   if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
-  const holdings = state.holdings || [];
-  const matches = holdings
-    .filter(h => h.desc && h.desc.toLowerCase().includes(q))
-    .slice(0, 8);
+  const clientHoldings = (state.holdings || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass || getAssetClass(h.symbol, h.desc) }));
+  const library = (state.settings.holdingsLibrary || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass }));
+  const seen = new Set();
+  const pool = [...clientHoldings, ...library].filter(h => {
+    if (!h.desc || seen.has(h.desc.toLowerCase())) return false;
+    seen.add(h.desc.toLowerCase());
+    return true;
+  });
+  const matches = pool.filter(h => h.desc.toLowerCase().includes(q)).slice(0, 8);
   if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
   list.innerHTML = matches.map(h =>
     `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
@@ -2408,9 +2423,14 @@ function switchTab(idx) {
 function exportExcel() {
   const wb = XLSX.utils.book_new();
 
+  const clientName = document.getElementById('f-client')?.value || '';
+  const clientAcct = document.getElementById('f-acct')?.value || '';
+  const clientDate = document.getElementById('f-date')?.value || '';
+  const clientLabel = clientName + (clientAcct ? ' (' + clientAcct + ')' : '');
+
   const nwData = [
     ['JRL Private Wealth — Client Review', '', '', '', ''],
-    ['Jeffrey Bunton (514839) | Advisor: Ryan Jarrell', '', '', '', ''],
+    [clientLabel + ' | Advisor: Ryan Jarrell', '', '', '', ''],
     [],
     ['NET WORTH STATEMENT', '', '', '', ''],
     ['Category', clientNames().a, clientNames().b, 'Joint', 'Total'],
@@ -2439,8 +2459,8 @@ function exportExcel() {
   XLSX.utils.book_append_sheet(wb, ws1, 'Net Worth');
 
   const hData = [
-    ['Portfolio Holdings — Jeffrey Bunton (514839)'],
-    ['As at February 27, 2026'],
+    ['Portfolio Holdings' + (clientLabel ? ' — ' + clientLabel : '')],
+    [clientDate ? 'As at ' + clientDate : ''],
     [],
     ['Description','Symbol','Category','Quantity','Price','Book Value','Market Value','Gain/Loss $','Gain/Loss %'],
   ];
@@ -2465,8 +2485,8 @@ function exportExcel() {
   XLSX.utils.book_append_sheet(wb, ws2, 'Holdings');
 
   const rData = [
-    ['Portfolio Monthly Rate of Return — Jeffrey Bunton (514839)'],
-    ['October 2025 to February 2026 | Currency: CAD'],
+    ['Portfolio Monthly Rate of Return' + (clientLabel ? ' — ' + clientLabel : '')],
+    ['Currency: CAD'],
     [],
     ['Period','Beg. Market Value','Inflows','Outflows','Net Flows','Ending Market Value','Change in MV','Rate of Return','SPX','TSX'],
   ];
@@ -2477,17 +2497,13 @@ function exportExcel() {
   ws3['!cols'] = [{wch:18},{wch:18},{wch:14},{wch:14},{wch:14},{wch:18},{wch:14},{wch:16},{wch:10},{wch:10}];
   XLSX.utils.book_append_sheet(wb, ws3, 'Rate of Return');
 
-  const client = document.getElementById('f-client')?.value || '';
-  const date   = document.getElementById('f-date')?.value || '';
-  const acct   = document.getElementById('f-acct')?.value || '';
-
   const fData = [
     ['JRL Private Wealth'],
     ['Client Portfolio Review'],
     ['Ryan Jarrell | ryan@jrlprivatewealth.com | T. 289 983 8547'],
     [],
-    [client + ' — Portfolio Review'],
-    ['Review Date: ' + date + '  |  Account: ' + acct],
+    [clientName + (clientName ? ' — Portfolio Review' : 'Portfolio Review')],
+    ['Review Date: ' + clientDate + (clientAcct ? '  |  Account: ' + clientAcct : '')],
     [],
     ['NET WORTH SUMMARY'],
     ['', clientNames().a, clientNames().b, 'Joint', 'Total'],
@@ -2764,6 +2780,42 @@ function removeProductRow(i) {
   renderProductMap();
 }
 
+function renderHoldingsLibrary() {
+  const tbody = document.getElementById('holdings-library-tbody');
+  if (!tbody) return;
+  if (!state.settings.holdingsLibrary) state.settings.holdingsLibrary = [];
+  const rows = state.settings.holdingsLibrary;
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input type="text" value="${escHtml(r.desc||'')}" oninput="state.settings.holdingsLibrary[${i}].desc=this.value;saveSettings();" placeholder="e.g. Pickton Global Innovators Fund"></td>
+      <td><input type="text" value="${escHtml(r.symbol||'')}" oninput="state.settings.holdingsLibrary[${i}].symbol=this.value;saveSettings();" placeholder="e.g. PGI" style="width:80px;"></td>
+      <td>
+        <select onchange="state.settings.holdingsLibrary[${i}].assetClass=this.value;saveSettings();">
+          <option value="">— Select —</option>
+          ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${r.assetClass===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </td>
+      <td><button class="settings-del-btn" onclick="removeLibraryRow(${i})">&#x2715;</button></td>
+    </tr>`).join('');
+}
+
+function addLibraryRow() {
+  if (!state.settings.holdingsLibrary) state.settings.holdingsLibrary = [];
+  state.settings.holdingsLibrary.push({ desc: '', symbol: '', assetClass: '' });
+  saveSettings();
+  renderHoldingsLibrary();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#holdings-library-tbody input[type="text"]');
+    if (inputs.length) inputs[inputs.length - 3].focus();
+  }, 30);
+}
+
+function removeLibraryRow(i) {
+  state.settings.holdingsLibrary.splice(i, 1);
+  saveSettings();
+  renderHoldingsLibrary();
+}
+
 function toggleSettings() {
   const overlay = document.getElementById('settings-overlay');
   const open = overlay.style.display !== 'none' && overlay.style.display !== '';
@@ -2772,12 +2824,14 @@ function toggleSettings() {
   } else {
     overlay.style.display = 'flex';
     renderProductMap();
+    renderHoldingsLibrary();
   }
 }
 
 // Load settings and render product map on startup
 loadSettings();
 renderProductMap();
+renderHoldingsLibrary();
 
 // Load client list on startup
 loadClientList();
@@ -2902,7 +2956,7 @@ async function sendAgentMessage() {
 </script>
 
 <!-- Settings gear button -->
-<button id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="position:fixed;bottom:88px;right:24px;z-index:9998;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);color:var(--navy);cursor:pointer;box-shadow:0 2px 10px rgba(15,31,61,0.15);display:none;align-items:center;justify-content:center;transition:transform 0.18s,box-shadow 0.18s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 18px rgba(15,31,61,0.22)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 10px rgba(15,31,61,0.15)'">
+<button id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="position:fixed;bottom:24px;left:24px;z-index:9998;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);color:var(--navy);cursor:pointer;box-shadow:0 2px 10px rgba(15,31,61,0.15);display:none;align-items:center;justify-content:center;transition:transform 0.18s,box-shadow 0.18s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 18px rgba(15,31,61,0.22)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 10px rgba(15,31,61,0.15)'">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
 </button>
 
