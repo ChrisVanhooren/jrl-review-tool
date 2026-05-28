@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root {
   --navy: #0f1f3d;
@@ -375,6 +376,20 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
 }
 .rebal-new-input:focus { background: #fffdf7; outline: 1px solid var(--gold); border-radius: 3px; padding: 1px 4px; }
 .rebal-new-input::placeholder { color: #bbb; font-style: italic; }
+.rebal-autocomplete-wrap { position: relative; display: inline-block; width: 100%; }
+.rebal-autocomplete-list {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 9000;
+  background: var(--white); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(15,31,61,0.13); min-width: 220px; max-width: 340px;
+  max-height: 180px; overflow-y: auto; display: none;
+}
+.rebal-autocomplete-list.open { display: block; }
+.rebal-autocomplete-item {
+  padding: 7px 12px; cursor: pointer; font-size: 0.81rem; color: var(--ink);
+  border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rebal-autocomplete-item:last-child { border-bottom: none; }
+.rebal-autocomplete-item:hover, .rebal-autocomplete-item.active { background: #f5f0e8; color: var(--navy); }
 .rebal-del {
   background: none; border: none; color: var(--muted); font-size: 1.05rem;
   line-height: 1; cursor: pointer; padding: 0 2px; opacity: 0;
@@ -484,6 +499,51 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 }
 .agent-send-btn:hover { background: var(--navy-mid); }
 .agent-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* ── SETTINGS TABLE ── */
+.settings-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.settings-table th { text-align: left; padding: 6px 10px; color: var(--muted); font-weight: 500; border-bottom: 2px solid var(--border); }
+.settings-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.settings-table input[type="text"] {
+  width: 100%; border: 1px solid var(--border); border-radius: 4px;
+  padding: 5px 8px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+  color: var(--ink); background: var(--white); outline: none;
+}
+.settings-table input[type="text"]:focus { border-color: var(--navy); }
+.settings-table select {
+  width: 100%; border: 1px solid var(--border); border-radius: 4px;
+  padding: 5px 8px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+  color: var(--ink); background: var(--white); outline: none; cursor: pointer;
+}
+.settings-table select:focus { border-color: var(--navy); }
+.ac-select {
+  border: none; background: transparent; font-family: 'DM Sans', sans-serif;
+  font-size: 0.76rem; color: var(--navy-mid); cursor: pointer; outline: none;
+  padding: 2px 2px; width: 100%; max-width: 180px;
+}
+.ac-select:hover { background: var(--cream); border-radius: 3px; }
+.ac-select:focus { background: var(--cream); border-radius: 3px; }
+
+.settings-del-btn {
+  background: none; border: none; color: var(--muted); font-size: 1rem;
+  cursor: pointer; padding: 2px 8px; border-radius: 4px; line-height: 1;
+}
+.settings-del-btn:hover { color: var(--danger); background: #fef2f2; }
+
+@keyframes agent-pulse {
+  0%, 100% { box-shadow: 0 4px 18px rgba(15,31,61,0.28), 0 0 0 0 rgba(201,168,76,0.55); }
+  50%       { box-shadow: 0 4px 18px rgba(15,31,61,0.28), 0 0 0 7px rgba(201,168,76,0); }
+}
+.agent-bubble-btn.loading { animation: agent-pulse 1.5s ease-in-out infinite; }
+.agent-bubble-btn.unread { position: relative; }
+.agent-bubble-btn.unread::after {
+  content: ''; position: absolute; top: 3px; right: 3px;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--gold); border: 2px solid white;
+}
+.agent-review-label {
+  display: block; font-size: 0.67rem; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 4px;
+}
 
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
@@ -882,6 +942,27 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
+  <!-- Settings modal overlay -->
+  <div id="settings-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.35);z-index:10000;align-items:flex-end;justify-content:flex-end;padding:90px 24px 24px;" onclick="if(event.target===this)toggleSettings()">
+    <div style="width:520px;max-width:calc(100vw - 48px);background:var(--white);border-radius:12px;box-shadow:0 8px 40px rgba(15,31,61,0.22);border:1px solid var(--border);overflow:hidden;">
+      <div style="background:var(--navy);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <h4 style="color:var(--white);margin:0;font-size:0.92rem;font-weight:600;">Settings</h4>
+          <div style="color:var(--gold-light);font-size:0.71rem;margin-top:2px;">Product map · saved in browser</div>
+        </div>
+        <button onclick="toggleSettings()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.1rem;cursor:pointer;padding:2px 6px;line-height:1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">&times;</button>
+      </div>
+      <div style="padding:18px 20px;max-height:60vh;overflow-y:auto;">
+        <p style="font-size:0.81rem;color:var(--muted);margin-bottom:14px;">Map fund names to asset classes. Any holding whose description contains the product name (case-insensitive) will be auto-classified.</p>
+        <table class="settings-table">
+          <thead><tr><th>Product Name (partial match)</th><th>Asset Class</th><th></th></tr></thead>
+          <tbody id="product-map-tbody"></tbody>
+        </table>
+        <button class="rebal-ghost-btn" style="margin-top:12px;" onclick="addProductRow()">+ Add Product</button>
+      </div>
+    </div>
+  </div>
+
   <!-- EXPORT BAR -->
   <div class="export-bar">
     <button class="btn-export" onclick="exportExcel()">
@@ -929,6 +1010,7 @@ const state = {
   rebalanceNotes: '',
   rebalanceRowNotes: {},
   rawImport: null,
+  settings: { productMap: [] },
 };
 
 // ── DRAG / DROP ──
@@ -945,8 +1027,10 @@ function fileSelected(input, type) {
   if (input.files[0]) handleFile(input.files[0], type);
 }
 
-function handleFile(file, type) {
-  state.files[type] = file;
+async function handleFile(file, type) {
+  // Read into memory immediately — avoids OneDrive/network permission errors later
+  const buffer = await file.arrayBuffer();
+  state.files[type] = { name: file.name, buffer };
   const dzId = type === 'holdings' ? 'dz-holdings' : 'dz-returns';
   const fnId = 'fname-' + type;
   const iconId = 'icon-' + type;
@@ -984,9 +1068,11 @@ async function buildReport() {
     await sleep(400);
     ps.style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('settings-gear-btn').style.display = 'flex';
     state.currentClientId = null;
     document.getElementById('topbar-client').textContent = '';
     document.getElementById('btn-topbar-save').style.display = 'block';
+    runImportReview();
   } catch(err) {
     setProgress(0, '⚠ Error: ' + err.message);
     console.error(err);
@@ -997,6 +1083,9 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── PARSE HOLDINGS (XLSX) ──
 function getAssetClass(symbol, desc) {
+  const d_lower = (desc || '').toLowerCase();
+  const mapped = (state.settings?.productMap || []).find(p => p.name && p.assetClass && d_lower.includes(p.name.toLowerCase()));
+  if (mapped) return mapped.assetClass;
   const symbolMap = {
     'EVF201':  'Savings / HISA',
     'RBF1691': 'Bond Fund',
@@ -1031,7 +1120,7 @@ function getAssetClass(symbol, desc) {
 }
 
 async function parseHoldings(file) {
-  const buf = await file.arrayBuffer();
+  const buf = file.buffer || await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
 
   const sheetName = wb.SheetNames.find(n => /hold/i.test(n)) || wb.SheetNames[0];
@@ -1075,12 +1164,20 @@ async function parseHoldings(file) {
     if (!r || !r[idx.desc]) continue;
     const desc = String(r[idx.desc] || '').trim();
     if (!desc) continue;
-    if (desc.toLowerCase().includes('total') || desc.toLowerCase().includes('mutual funds') || desc.toLowerCase() === 'cash balance') {
+    const d = desc.toLowerCase();
+    if (d.includes('total') || d.includes('mutual funds') || d === 'cash balance') {
       _importLog.skipped.push({ desc, reason: 'header or total row' });
       continue;
     }
+    // Skip section grouping rows — they have no symbol, quantity, or price (just a sub-total MV)
+    const _sym = String(r[idx.symbol] || '').trim();
+    const _hasTradeData = (_sym && _sym !== '—') || !isNaN(parseFloat(r[idx.qty])) || !isNaN(parseFloat(r[idx.price]));
+    if (!_hasTradeData && !d.includes('cash')) {
+      _importLog.skipped.push({ desc, reason: 'section header row' });
+      continue;
+    }
     const mv = parseFloat(r[idx.mv]) || 0;
-    if (mv === 0 && !desc.includes('Cash')) {
+    if (mv === 0 && !d.includes('cash')) {
       _importLog.skipped.push({ desc, reason: 'zero market value' });
       continue;
     }
@@ -1146,7 +1243,7 @@ async function parseReturns(file) {
 }
 
 async function parseReturnsPDF(file) {
-  const buf = await file.arrayBuffer();
+  const buf = file.buffer || await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
 
   const items = [];
@@ -1212,7 +1309,7 @@ async function parseReturnsPDF(file) {
 }
 
 async function parseReturnsXLSX(file) {
-  const buf = await file.arrayBuffer();
+  const buf = file.buffer || await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
   const sheetName = wb.SheetNames.find(n => /return|rate/i.test(n)) || wb.SheetNames.find(n => /table/i.test(n)) || wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
@@ -1434,7 +1531,20 @@ function renderHoldings() {
 
     tr.appendChild(eCell('', row.desc, 'desc'));
     tr.appendChild(eCell('cell-muted', row.symbol, 'symbol'));
-    tr.appendChild(eCell('cell-ac', assetClass || '—', 'assetClass'));
+
+    const acTd = document.createElement('td');
+    acTd.className = 'cell-ac';
+    const acSel = document.createElement('select');
+    acSel.className = 'ac-select';
+    acSel.innerHTML = '<option value="">— Select —</option>' +
+      ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${assetClass === o ? ' selected' : ''}>${o}</option>`).join('');
+    acSel.addEventListener('change', () => {
+      state.holdings[i].assetClass = acSel.value;
+      updateHoldingsTotals();
+      renderFinal();
+    });
+    acTd.appendChild(acSel);
+    tr.appendChild(acTd);
 
     const tdPct = document.createElement('td');
     tdPct.className = 'r';
@@ -1567,22 +1677,43 @@ function updateHoldingsTotals() {
 }
 
 const ALLOC_COLORS = {
-  'Cash': '#888780',
-  'Savings / HISA': '#5bb99e',
-  'Bond Fund': '#5b6bbf',
-  'Corporate Bond Fund': '#4a5ab8',
-  'Global Bond Fund': '#3a4ab0',
-  'Canadian Equity Fund': '#534AB7',
-  'US Equity Fund': '#378ADD',
-  'Global Equity Fund': '#1D9E75',
-  'Global Small Cap Fund': '#15876a',
-  'International Equity Fund': '#0e6e54',
+  'Cash': '#4472C4',
+  'Savings / HISA': '#4472C4',
+  'Bond Fund': '#70AD47',
+  'Corporate Bond Fund': '#375623',
+  'Global Bond Fund': '#A9D18E',
   'Tactical Income Fund': '#BA7517',
-  'Alternative / Market Neutral': '#D4537E',
-  'Alternative / Commodities': '#c94a4a',
-  'C': '#534AB7', 'CAD': '#534AB7', 'U': '#378ADD', 'US': '#378ADD',
-  'Intl': '#1D9E75', 'Alt': '#BA7517', 'PPN': '#D4537E', 'Other': '#999',
+  'Canadian Equity Fund': '#FFC000',
+  'US Equity Fund': '#5B9BD5',
+  'Global Equity Fund': '#2E75B6',
+  'Global Small Cap Fund': '#2E75B6',
+  'International Equity Fund': '#2E75B6',
+  'Alternative / Market Neutral': '#0F1F3D',
+  'Alternative / Commodities': '#7F7F7F',
+  'C': '#FFC000', 'CAD': '#FFC000', 'U': '#5B9BD5', 'US': '#5B9BD5',
+  'Intl': '#2E75B6', 'Alt': '#0F1F3D', 'PPN': '#7F7F7F', 'Other': '#999',
 };
+
+const GROUP_MAP = [
+  { group: 'Cash & Equivalent', subs: [
+    { label: 'Cash',     color: '#4472C4', classes: ['Cash', 'Savings / HISA'] },
+  ]},
+  { group: 'Fixed Income', subs: [
+    { label: 'Corp',     color: '#375623', classes: ['Corporate Bond Fund'] },
+    { label: 'Govt',     color: '#70AD47', classes: ['Bond Fund'] },
+    { label: 'Global',   color: '#A9D18E', classes: ['Global Bond Fund'] },
+    { label: 'Tactical', color: '#BA7517', classes: ['Tactical Income Fund'] },
+  ]},
+  { group: 'Public Equities', subs: [
+    { label: 'CAD',      color: '#FFC000', classes: ['Canadian Equity Fund'] },
+    { label: 'US',       color: '#5B9BD5', classes: ['US Equity Fund'] },
+    { label: 'Intl',     color: '#2E75B6', classes: ['Global Equity Fund', 'International Equity Fund', 'Global Small Cap Fund'] },
+  ]},
+  { group: 'Alternatives', subs: [
+    { label: 'Mkt Neutral',  color: '#0F1F3D', classes: ['Alternative / Market Neutral'] },
+    { label: 'Commodities',  color: '#7F7F7F', classes: ['Alternative / Commodities'] },
+  ]},
+];
 
 function renderAlloc() {
   const h = state.holdings || [];
@@ -1663,7 +1794,16 @@ function renderAdvisor() {
       const actionDollars = pos.targetPct / 100 * totalMV;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td style="padding:5px 10px;"><input type="text" class="rebal-new-input" placeholder="Fund name…" value="${escHtml(pos.desc)}" oninput="state.rebalanceNew[${i}].desc=this.value"></td>
+        <td style="padding:5px 10px;">
+          <div class="rebal-autocomplete-wrap">
+            <input type="text" class="rebal-new-input rebal-desc-input" placeholder="Fund name…" value="${escHtml(pos.desc)}"
+              autocomplete="off"
+              oninput="handleRebalDescInput(this,${i})"
+              onkeydown="handleRebalDescKey(event,this,${i})"
+              onblur="setTimeout(()=>closeRebalAutocomplete(this),150)">
+            <div class="rebal-autocomplete-list" id="rebal-ac-${i}"></div>
+          </div>
+        </td>
         <td style="padding:5px 10px;"><input type="text" class="rebal-new-input" placeholder="Asset class…" value="${escHtml(pos.assetClass)}" oninput="state.rebalanceNew[${i}].assetClass=this.value" style="color:var(--navy-mid);font-weight:500;font-size:0.76rem;"></td>
         <td class="r" style="color:var(--muted);">$0.00</td>
         <td class="r" style="color:var(--muted);">0.00%</td>
@@ -1792,13 +1932,76 @@ function handleNewRebalInput(input) {
   updateRebalStats(totalMV, totalTargetPct);
 }
 
+// ── REBALANCER AUTOCOMPLETE ──
+function handleRebalDescInput(input, idx) {
+  state.rebalanceNew[idx].desc = input.value;
+  const q = input.value.trim().toLowerCase();
+  const list = document.getElementById('rebal-ac-' + idx);
+  if (!list) return;
+  if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  const holdings = state.holdings || [];
+  const matches = holdings
+    .filter(h => h.desc && h.desc.toLowerCase().includes(q))
+    .slice(0, 8);
+  if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  list.innerHTML = matches.map(h =>
+    `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
+      onmousedown="selectRebalAutocomplete(event,${idx})">${escHtml(h.desc)}</div>`
+  ).join('');
+  list.classList.add('open');
+}
+
+function selectRebalAutocomplete(event, idx) {
+  event.preventDefault();
+  const item = event.currentTarget;
+  const desc = item.dataset.desc;
+  const ac = item.dataset.ac;
+  state.rebalanceNew[idx].desc = desc;
+  if (ac) state.rebalanceNew[idx].assetClass = ac;
+  renderAdvisor();
+}
+
+function closeRebalAutocomplete(input) {
+  const wrap = input.closest('.rebal-autocomplete-wrap');
+  if (!wrap) return;
+  const list = wrap.querySelector('.rebal-autocomplete-list');
+  if (list) { list.classList.remove('open'); list.innerHTML = ''; }
+}
+
+function handleRebalDescKey(event, input, idx) {
+  const list = document.getElementById('rebal-ac-' + idx);
+  if (!list || !list.classList.contains('open')) return;
+  const items = list.querySelectorAll('.rebal-autocomplete-item');
+  const active = list.querySelector('.rebal-autocomplete-item.active');
+  let activeIdx = Array.from(items).indexOf(active);
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    if (active) active.classList.remove('active');
+    items[Math.min(activeIdx + 1, items.length - 1)].classList.add('active');
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (active) active.classList.remove('active');
+    items[Math.max(activeIdx - 1, 0)].classList.add('active');
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    const highlighted = list.querySelector('.rebal-autocomplete-item.active') || items[0];
+    if (highlighted) {
+      event.preventDefault();
+      state.rebalanceNew[idx].desc = highlighted.dataset.desc;
+      if (highlighted.dataset.ac) state.rebalanceNew[idx].assetClass = highlighted.dataset.ac;
+      renderAdvisor();
+    }
+  } else if (event.key === 'Escape') {
+    list.classList.remove('open'); list.innerHTML = '';
+  }
+}
+
 function addRebalPosition() {
   if (!state.rebalanceNew) state.rebalanceNew = [];
   state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0 });
   renderAdvisor();
   setTimeout(() => {
-    const inputs = document.querySelectorAll('.rebal-new-input');
-    if (inputs.length) inputs[inputs.length - 2].focus();
+    const inputs = document.querySelectorAll('.rebal-desc-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
   }, 30);
 }
 
@@ -2096,23 +2299,64 @@ function renderFinal() {
 
   const h = state.holdings || [];
   const totalMV = h.reduce((s,r) => s+r.mv, 0) || 1;
-  const alloc = {};
-  h.forEach(r => { const cat = (r.assetClass || r.cat || 'Other').trim() || 'Other'; alloc[cat] = (alloc[cat]||0) + r.mv; });
-  const sorted = Object.entries(alloc).sort((a,b) => b[1]-a[1]);
-  if (sorted.length) {
+  // Build a lookup: assetClass → MV
+  const mvByClass = {};
+  h.forEach(r => {
+    const cls = (r.assetClass || '').trim();
+    if (cls) mvByClass[cls] = (mvByClass[cls] || 0) + r.mv;
+  });
+  // Compute pct for each sub-category in each group
+  const activeGroups = [];
+  const datasetMap = {}; // label → { color, data[] }
+  GROUP_MAP.forEach(gDef => {
+    let groupHasData = false;
+    gDef.subs.forEach(sub => {
+      const subMV = sub.classes.reduce((s, cls) => s + (mvByClass[cls] || 0), 0);
+      const pct = +(subMV / totalMV * 100).toFixed(1);
+      if (!datasetMap[sub.label]) datasetMap[sub.label] = { color: sub.color, data: [] };
+      datasetMap[sub.label].data.push(pct);
+      if (pct > 0) groupHasData = true;
+    });
+    activeGroups.push({ name: gDef.group, hasData: groupHasData });
+  });
+  // Filter to only groups that have data; remap dataset arrays accordingly
+  const groupIndices = activeGroups.map((g, i) => g.hasData ? i : -1).filter(i => i >= 0);
+  const groupLabels = groupIndices.map(i => activeGroups[i].name);
+  const datasets = Object.entries(datasetMap)
+    .map(([label, { color, data }]) => ({
+      label,
+      data: groupIndices.map(i => data[i]),
+      backgroundColor: color,
+      borderRadius: 2,
+      barThickness: 28,
+      stack: 'alloc',
+    }))
+    .filter(ds => ds.data.some(v => v > 0));
+  if (datasets.length) {
     _allocChart = new Chart(document.getElementById('fp-alloc'), {
       type: 'bar',
-      data: {
-        labels: sorted.map(([cat]) => cat),
-        datasets: [{ data: sorted.map(([,mv]) => +(mv/totalMV*100).toFixed(1)), backgroundColor: sorted.map(([cat]) => ALLOC_COLORS[cat]||'#888'), borderRadius: 3, barThickness: 16 }]
-      },
+      plugins: [ChartDataLabels],
+      data: { labels: groupLabels, datasets },
       options: {
         animation: false,
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x.toFixed(1)+'%' } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.x.toFixed(1)}%` } },
+          datalabels: {
+            display: ctx => ctx.dataset.data[ctx.dataIndex] >= 4,
+            formatter: (val, ctx) => `${ctx.dataset.label}\n${val.toFixed(1)}%`,
+            color: ctx => {
+              const dark = ['#375623','#0F1F3D'];
+              return dark.includes(ctx.dataset.backgroundColor) ? '#fff' : '#1a1a2e';
+            },
+            font: { size: 9, weight: '600' },
+            anchor: 'center', align: 'center', textAlign: 'center',
+          }
+        },
         scales: {
-          x: { ticks: { font:{size:10}, callback: v => v+'%' }, grid: { color:'#f3f0eb' } },
-          y: { ticks: { font:{size:10} } }
+          x: { stacked: true, ticks: { font:{size:10}, callback: v => v+'%' }, grid: { color:'#f3f0eb' }, max: 100 },
+          y: { stacked: true, ticks: { font:{size:10} } }
         }
       }
     });
@@ -2344,6 +2588,7 @@ async function loadClient(id) {
     document.getElementById('upload-screen').style.display    = 'none';
     document.getElementById('progress-screen').style.display  = 'none';
     document.getElementById('app-screen').style.display       = 'block';
+    document.getElementById('settings-gear-btn').style.display = 'flex';
     document.getElementById('topbar-client').textContent      = client.name;
     document.getElementById('btn-topbar-save').style.display  = 'block';
 
@@ -2445,6 +2690,8 @@ function newReview() {
   document.getElementById('upload-screen').style.display   = 'flex';
   document.getElementById('progress-screen').style.display = 'none';
   document.getElementById('app-screen').style.display      = 'none';
+  document.getElementById('settings-gear-btn').style.display = 'none';
+  document.getElementById('settings-overlay').style.display = 'none';
 
   loadClientList();
 }
@@ -2469,6 +2716,69 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
+// ── PLATFORM SETTINGS ──
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('jrl_settings');
+    if (saved) state.settings = JSON.parse(saved);
+  } catch (_) {}
+}
+
+function saveSettings() {
+  localStorage.setItem('jrl_settings', JSON.stringify(state.settings));
+}
+
+const ASSET_CLASS_OPTIONS = [
+  'Cash', 'Savings / HISA', 'Bond Fund', 'Corporate Bond Fund', 'Global Bond Fund',
+  'Tactical Income Fund', 'Canadian Equity Fund', 'US Equity Fund', 'Global Equity Fund',
+  'International Equity Fund', 'Global Small Cap Fund',
+  'Alternative / Market Neutral', 'Alternative / Commodities',
+];
+
+function renderProductMap() {
+  const tbody = document.getElementById('product-map-tbody');
+  if (!tbody) return;
+  const rows = state.settings.productMap;
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input type="text" value="${escHtml(r.name)}" oninput="state.settings.productMap[${i}].name=this.value;saveSettings();" placeholder="e.g. Pickton Global Innovators"></td>
+      <td>
+        <select onchange="state.settings.productMap[${i}].assetClass=this.value;saveSettings();">
+          <option value="">— Select —</option>
+          ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${r.assetClass===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </td>
+      <td><button class="settings-del-btn" onclick="removeProductRow(${i})">&#x2715;</button></td>
+    </tr>`).join('');
+}
+
+function addProductRow() {
+  state.settings.productMap.push({ name: '', assetClass: '' });
+  saveSettings();
+  renderProductMap();
+}
+
+function removeProductRow(i) {
+  state.settings.productMap.splice(i, 1);
+  saveSettings();
+  renderProductMap();
+}
+
+function toggleSettings() {
+  const overlay = document.getElementById('settings-overlay');
+  const open = overlay.style.display !== 'none' && overlay.style.display !== '';
+  if (open) {
+    overlay.style.display = 'none';
+  } else {
+    overlay.style.display = 'flex';
+    renderProductMap();
+  }
+}
+
+// Load settings and render product map on startup
+loadSettings();
+renderProductMap();
+
 // Load client list on startup
 loadClientList();
 
@@ -2480,7 +2790,10 @@ function toggleAgentPanel() {
   _agentOpen = !_agentOpen;
   const panel = document.getElementById('agent-panel');
   panel.style.display = _agentOpen ? 'flex' : 'none';
-  if (_agentOpen) setTimeout(() => document.getElementById('agent-input').focus(), 50);
+  if (_agentOpen) {
+    document.querySelector('.agent-bubble-btn').classList.remove('unread');
+    setTimeout(() => document.getElementById('agent-input').focus(), 50);
+  }
 }
 
 function appendAgentMsg(role, text, thinking = false) {
@@ -2516,6 +2829,33 @@ function applyAgentActions(actions) {
   }
   if (needsHoldings) { renderHoldings(); needsFinal = true; }
   if (needsFinal) renderFinal();
+}
+
+async function runImportReview() {
+  const btn = document.querySelector('.agent-bubble-btn');
+  btn.classList.add('loading');
+  const reviewPrompt = 'Please review the import that just completed. Summarise: how many holdings and return periods were loaded and from which files, any rows that were skipped and why, whether demo/default data was used instead of real data, and any holdings with a missing asset class. Be concise — one short paragraph if everything looks clean, specific bullet points if there are issues.';
+  agentMessages.push({ role: 'user', content: reviewPrompt });
+  const thinkingEl = appendAgentMsg('assistant', 'Reviewing your import…', true);
+  const bubble = thinkingEl.querySelector('.agent-msg-bubble');
+  try {
+    const res = await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: agentMessages, portfolio: buildPortfolioContext() })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const reply = data.reply || 'Import review complete.';
+    bubble.innerHTML = `<span class="agent-review-label">Auto-review</span>${escHtml(reply)}`;
+    bubble.classList.remove('ai-thinking');
+    agentMessages.push({ role: 'assistant', content: reply });
+    if (!_agentOpen) btn.classList.add('unread');
+  } catch (_err) {
+    thinkingEl.remove();
+    agentMessages.pop();
+  }
+  btn.classList.remove('loading');
 }
 
 async function sendAgentMessage() {
@@ -2560,6 +2900,11 @@ async function sendAgentMessage() {
   document.getElementById('agent-messages').scrollTop = 9999;
 }
 </script>
+
+<!-- Settings gear button -->
+<button id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="position:fixed;bottom:88px;right:24px;z-index:9998;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);color:var(--navy);cursor:pointer;box-shadow:0 2px 10px rgba(15,31,61,0.15);display:none;align-items:center;justify-content:center;transition:transform 0.18s,box-shadow 0.18s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 18px rgba(15,31,61,0.22)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 10px rgba(15,31,61,0.15)'">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+</button>
 
 <div class="agent-bubble" id="agent-bubble">
   <div class="agent-panel" id="agent-panel" style="display:none;">
