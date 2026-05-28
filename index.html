@@ -2314,22 +2314,24 @@ function renderFinal() {
 
   const h = state.holdings || [];
   const totalMV = h.reduce((s,r) => s+r.mv, 0) || 1;
-  // Build a lookup: assetClass → MV
+  // Build a lookup: assetClass → MV (fall back to getAssetClass if not explicitly set)
   const mvByClass = {};
   h.forEach(r => {
-    const cls = (r.assetClass || '').trim();
+    const cls = (r.assetClass || getAssetClass(r.symbol, r.desc) || '').trim();
     if (cls) mvByClass[cls] = (mvByClass[cls] || 0) + r.mv;
   });
   // Compute pct for each sub-category in each group
+  // Pre-fill data arrays with 0 for every group so index positions are correct
   const activeGroups = [];
   const datasetMap = {}; // label → { color, data[] }
-  GROUP_MAP.forEach(gDef => {
+  const numGroups = GROUP_MAP.length;
+  GROUP_MAP.forEach((gDef, gIdx) => {
     let groupHasData = false;
     gDef.subs.forEach(sub => {
       const subMV = sub.classes.reduce((s, cls) => s + (mvByClass[cls] || 0), 0);
       const pct = +(subMV / totalMV * 100).toFixed(1);
-      if (!datasetMap[sub.label]) datasetMap[sub.label] = { color: sub.color, data: [] };
-      datasetMap[sub.label].data.push(pct);
+      if (!datasetMap[sub.label]) datasetMap[sub.label] = { color: sub.color, data: new Array(numGroups).fill(0) };
+      datasetMap[sub.label].data[gIdx] = pct;
       if (pct > 0) groupHasData = true;
     });
     activeGroups.push({ name: gDef.group, hasData: groupHasData });
