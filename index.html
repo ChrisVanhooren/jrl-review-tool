@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root {
   --navy: #0f1f3d;
@@ -181,6 +182,12 @@ body {
 .tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); font-weight: 500; }
 .tab-btn.active .tab-dot { background: var(--gold); }
 .tab-btn.filled .tab-dot { background: var(--success); }
+.tab-gear-btn {
+  margin-left: auto; height: var(--tab-h); border: none; background: none;
+  color: var(--muted); cursor: pointer; padding: 0 1rem;
+  display: flex; align-items: center; transition: color 0.15s;
+}
+.tab-gear-btn:hover { color: var(--navy); }
 
 /* ── CONTENT ── */
 .tab-content { display: none; padding: 2rem 2.5rem 4rem; max-width: 1500px; }
@@ -760,6 +767,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     <button class="tab-btn filled" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Monthly Returns</button>
     <button class="tab-btn" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Final</button>
     <button class="tab-btn" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Advisor Tool</button>
+    <button class="tab-gear-btn" onclick="toggleSettings()" title="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
   </div>
 
   <!-- TAB 0: NET WORTH -->
@@ -969,9 +979,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Push to Excel
     </button>
-    <button class="btn-export" onclick="switchTab(3);setTimeout(()=>window.print(),500);" style="background:var(--navy);color:var(--white);margin-left:8px;" id="btn-print">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="1" width="10" height="4" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="1" y="5" width="14" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="10" width="8" height="5" rx="1" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
-      Print to PDF
+    <button class="btn-export" onclick="downloadPDF()" style="background:var(--navy);color:var(--white);margin-left:8px;" id="btn-print">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Save as PDF
     </button>
     <span class="export-note">Excel: data tabs | PDF: Final report</span>
   </div>
@@ -2686,6 +2696,32 @@ function switchTab(idx) {
   if (idx === 4) renderAdvisor();
 }
 
+// ── DOWNLOAD PDF ──
+async function downloadPDF() {
+  switchTab(3);
+  await new Promise(r => setTimeout(r, 600));
+  const btn = document.getElementById('btn-print');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.8" stroke-dasharray="28" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.8s" repeatCount="indefinite"/></circle></svg> Generating…';
+  btn.disabled = true;
+  const client = document.getElementById('f-client')?.value || 'Client';
+  const date   = document.getElementById('f-date')?.value  || '';
+  const filename = [client, date, 'Portfolio Review'].filter(Boolean).join(' - ') + '.pdf';
+  const el = document.getElementById('final-preview-content');
+  try {
+    await html2pdf().set({
+      margin: 0,
+      filename,
+      image:      { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
+      jsPDF:      { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    }).from(el).save();
+  } finally {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
 // ── EXPORT EXCEL ──
 function exportExcel() {
   const wb = XLSX.utils.book_new();
@@ -3280,10 +3316,6 @@ async function sendAgentMessage() {
 }
 </script>
 
-<!-- Settings gear button -->
-<button id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="position:fixed;bottom:24px;left:24px;z-index:9998;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);color:var(--navy);cursor:pointer;box-shadow:0 2px 10px rgba(15,31,61,0.15);display:flex;align-items:center;justify-content:center;transition:transform 0.18s,box-shadow 0.18s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 18px rgba(15,31,61,0.22)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 10px rgba(15,31,61,0.15)'">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-</button>
 
 <div class="agent-bubble" id="agent-bubble">
   <div class="agent-panel" id="agent-panel" style="display:none;">
