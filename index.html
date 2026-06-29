@@ -10,7 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --navy: #0f1f3d;
@@ -2699,23 +2700,30 @@ function switchTab(idx) {
 // ── DOWNLOAD PDF ──
 async function downloadPDF() {
   switchTab(3);
-  await new Promise(r => setTimeout(r, 600));
+  renderFinal();
+  await new Promise(r => setTimeout(r, 900));
   const btn = document.getElementById('btn-print');
   const orig = btn.innerHTML;
   btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.8" stroke-dasharray="28" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.8s" repeatCount="indefinite"/></circle></svg> Generating…';
   btn.disabled = true;
-  const client = document.getElementById('f-client')?.value || 'Client';
-  const date   = document.getElementById('f-date')?.value  || '';
-  const filename = [client, date, 'Portfolio Review'].filter(Boolean).join(' - ') + '.pdf';
-  const el = document.getElementById('final-preview-content');
   try {
-    await html2pdf().set({
-      margin: 0,
-      filename,
-      image:      { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-      jsPDF:      { unit: 'mm', format: 'a4', orientation: 'landscape' }
-    }).from(el).save();
+    const el = document.getElementById('final-preview-content');
+    const canvas = await html2canvas(el, {
+      scale: 2, useCORS: true, allowTaint: true,
+      backgroundColor: '#ffffff', logging: false
+    });
+    const imgData = canvas.toDataURL('image/jpeg', 0.97);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const ratio = canvas.width / canvas.height;
+    let w = pageW, h = pageW / ratio;
+    if (h > pageH) { h = pageH; w = pageH * ratio; }
+    pdf.addImage(imgData, 'JPEG', (pageW - w) / 2, (pageH - h) / 2, w, h);
+    const client = document.getElementById('f-client')?.value || 'Client';
+    const date   = document.getElementById('f-date')?.value  || '';
+    pdf.save([client, date, 'Portfolio Review'].filter(Boolean).join(' - ') + '.pdf');
   } finally {
     btn.innerHTML = orig;
     btn.disabled = false;
