@@ -2667,21 +2667,22 @@ function renderFinal() {
       data: {
         labels: chartRows.map(row => row.period.replace(' 20'," '")),
         datasets: [
-          { label: 'Ending Market Value', data: mvData, borderColor: '#0f1f3d', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2, tension: 0.3,
-            datalabels: {
-              display: ctx => ctx.dataIndex === mvData.length - 1,
-              formatter: v => { const range = (mvYMax || maxChartVal) - effectiveYMin; if(v>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(range<5000&&v>=1e3) return '$'+(v/1000).toFixed(1).replace(/\.0$/,'')+'k'; if(v>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; },
-              color: '#0f1f3d', font: { size: 10, weight: '600' }, anchor: 'end', align: 'top', offset: 4
-            }
-          },
-          ...(showInvested ? [{ label: 'Invested Capital', data: investedData, borderColor: '#9ca3af', backgroundColor: 'transparent', pointRadius: 2, borderWidth: 1.5, tension: 0.3, borderDash: [4,3], datalabels: { display: false } }] : [])
+          { label: 'Ending Market Value', data: mvData, borderColor: '#0f1f3d', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2, tension: 0.3 },
+          ...(showInvested ? [{ label: 'Invested Capital', data: investedData, borderColor: '#9ca3af', backgroundColor: 'transparent', pointRadius: 2, borderWidth: 1.5, tension: 0.3, borderDash: [4,3] }] : [])
         ]
       },
       options: {
         animation: false,
         responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 20, right: 10 } },
-        plugins: { legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } }, datalabels: { display: false } },
+        layout: { padding: { top: 24, right: 10 } },
+        plugins: {
+          legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } },
+          datalabels: {
+            display: ctx => ctx.datasetIndex === 0 && ctx.dataIndex === mvData.length - 1,
+            formatter: v => { const range = (mvYMax || maxChartVal) - effectiveYMin; if(v>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(range<5000&&v>=1e3) return '$'+(v/1000).toFixed(1).replace(/\.0$/,'')+'k'; if(v>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; },
+            color: '#0f1f3d', font: { size: 10, weight: '600' }, anchor: 'center', align: 'top', offset: 8
+          }
+        },
         scales: {
           x: { ticks: { font:{size:9} }, grid: { display: false } },
           y: { min: effectiveYMin, max: mvYMax, ticks: { font:{size:9}, maxTicksLimit: 6, callback: v => { const range = (mvYMax || maxChartVal) - effectiveYMin; if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(range < 5000 && Math.abs(v)>=1e3) return '$'+(v/1000).toFixed(1).replace(/\.0$/,'')+'k'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; } }, grid: { color:'#f3f0eb' } }
