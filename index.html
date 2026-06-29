@@ -2677,7 +2677,7 @@ function renderFinal() {
         plugins: { legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } } },
         scales: {
           x: { ticks: { font:{size:9} }, grid: { display: false } },
-          y: { min: effectiveYMin, max: mvYMax, ticks: { font:{size:9}, callback: v => { if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; } }, grid: { color:'#f3f0eb' } }
+          y: { min: effectiveYMin, max: mvYMax, ticks: { font:{size:9}, maxTicksLimit: 6, callback: v => { const range = (mvYMax || maxChartVal) - effectiveYMin; if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(range < 5000 && Math.abs(v)>=1e3) return '$'+(v/1000).toFixed(1).replace(/\.0$/,'')+'k'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; } }, grid: { color:'#f3f0eb' } }
         }
       }
     });
