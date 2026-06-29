@@ -35,6 +35,14 @@ async function initDB() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      data JSONB NOT NULL DEFAULT '{}',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`INSERT INTO settings (id, data) VALUES (1, '{}') ON CONFLICT (id) DO NOTHING`);
 }
 
 app.get('/api/clients', async (req, res) => {
@@ -97,6 +105,30 @@ app.delete('/api/clients/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   try {
     await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/settings', async (req, res) => {
+  if (!pool) return res.json({});
+  try {
+    const { rows } = await pool.query('SELECT data FROM settings WHERE id = 1');
+    res.json(rows[0]?.data || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/settings', async (req, res) => {
+  if (!pool) return res.json({ ok: true });
+  try {
+    await pool.query(
+      `INSERT INTO settings (id, data) VALUES (1, $1)
+       ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()`,
+      [req.body]
+    );
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

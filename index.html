@@ -570,6 +570,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   tr[style*="background:var(--navy)"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   @page { size: A4 landscape; margin: 5mm; }
   .sidebar { display: none !important; }
+  .agent-bubble { display: none !important; }
   #print-report { zoom: 0.72; }
 }
 
@@ -796,7 +797,13 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   <div class="tab-content" id="tab-1">
     <div class="stats-row" id="holdings-stats"></div>
     <div class="card">
-      <div class="card-head"><h3>Portfolio Holdings</h3><span class="badge" id="holdings-badge">Auto-populated</span></div>
+      <div class="card-head">
+        <h3>Portfolio Holdings</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="rebal-ghost-btn" onclick="addHoldingsToLibrary()" style="border-color:rgba(255,255,255,0.5);color:#fff;" title="Push all holdings into the Settings library for autocomplete">&#8659; Add all to Library</button>
+          <span class="badge" id="holdings-badge">Auto-populated</span>
+        </div>
+      </div>
       <div id="holdings-header-info" style="padding:0.5rem 1.5rem 0.75rem;display:flex;gap:2rem;font-size:0.83rem;color:var(--muted);border-bottom:1px solid var(--border);flex-wrap:wrap;"></div>
       <div class="card-body" style="overflow-x:auto;">
         <table id="holdings-table">
@@ -819,13 +826,23 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   <div class="tab-content" id="tab-2">
     <div class="stats-row" id="returns-stats"></div>
     <div class="card">
-      <div class="card-head"><h3>Monthly Rate of Return</h3><span class="badge" id="returns-badge">Auto-populated</span></div>
+      <div class="card-head">
+        <h3>Monthly Rate of Return</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="addReturnRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Row
+          </button>
+          <span class="badge" id="returns-badge">Auto-populated</span>
+        </div>
+      </div>
       <div class="card-body" style="overflow-x:auto;">
         <table id="returns-table">
           <thead><tr>
             <th>Period</th><th class="r">Beg. MV</th><th class="r">Inflows</th><th class="r">Outflows</th>
             <th class="r">Net Flows</th><th class="r">Ending MV</th><th class="r">Change in MV</th>
             <th class="r">ROR</th><th class="r">SPX</th><th class="r">TSX</th>
+            <th style="width:24px;"></th>
           </tr></thead>
           <tbody id="returns-tbody"></tbody>
         </table>
@@ -887,7 +904,10 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Portfolio Rebalancer</h3>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button class="rebal-ghost-btn" onclick="addRebalPosition()">+ Add Position</button>
+          <button onclick="addRebalPosition()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Position
+          </button>
           <button class="rebal-ghost-btn" onclick="resetRebalTargets()">Reset to Current</button>
           <button class="rebal-ghost-btn" onclick="showTradeList()" style="border-color:rgba(255,255,255,0.5);color:#fff;">&#x2398; Trade Summary</button>
           <span class="badge">Internal Use Only</span>
@@ -943,37 +963,6 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- Settings modal overlay -->
-  <div id="settings-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.35);z-index:10000;align-items:flex-end;justify-content:flex-start;padding:0 24px 88px 24px;" onclick="if(event.target===this)toggleSettings()">
-    <div style="width:520px;max-width:calc(100vw - 48px);background:var(--white);border-radius:12px;box-shadow:0 8px 40px rgba(15,31,61,0.22);border:1px solid var(--border);overflow:hidden;">
-      <div style="background:var(--navy);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <h4 style="color:var(--white);margin:0;font-size:0.92rem;font-weight:600;">Settings</h4>
-          <div style="color:var(--gold-light);font-size:0.71rem;margin-top:2px;">Product map · saved in browser</div>
-        </div>
-        <button onclick="toggleSettings()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.1rem;cursor:pointer;padding:2px 6px;line-height:1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">&times;</button>
-      </div>
-      <div style="padding:18px 20px;max-height:60vh;overflow-y:auto;">
-        <p style="font-size:0.81rem;color:var(--muted);margin-bottom:14px;">Map fund names to asset classes. Any holding whose description contains the product name (case-insensitive) will be auto-classified.</p>
-        <table class="settings-table">
-          <thead><tr><th>Product Name (partial match)</th><th>Asset Class</th><th></th></tr></thead>
-          <tbody id="product-map-tbody"></tbody>
-        </table>
-        <button class="rebal-ghost-btn" style="margin-top:12px;" onclick="addProductRow()">+ Add Product</button>
-
-        <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border);">
-          <div style="font-size:0.82rem;font-weight:600;color:var(--navy);margin-bottom:6px;">Holdings Library</div>
-          <p style="font-size:0.81rem;color:var(--muted);margin-bottom:12px;">Pre-load funds so the Advisor Tool autocomplete works even before a client file is imported. Type a name and it will suggest from here.</p>
-          <table class="settings-table">
-            <thead><tr><th>Fund Name</th><th>Symbol</th><th>Asset Class</th><th></th></tr></thead>
-            <tbody id="holdings-library-tbody"></tbody>
-          </table>
-          <button class="rebal-ghost-btn" style="margin-top:12px;" onclick="addLibraryRow()">+ Add Fund</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- EXPORT BAR -->
   <div class="export-bar">
     <button class="btn-export" onclick="exportExcel()">
@@ -990,6 +979,58 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 
   </div><!-- end main-content -->
 </div><!-- end main-layout -->
+
+<!-- Settings full-page screen (outside app-screen so it works from any state) -->
+<div id="settings-screen" style="display:none;min-height:calc(100vh - 60px);background:var(--bg);padding:32px 32px 60px;">
+  <div style="max-width:860px;margin:0 auto;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:28px;">
+      <button onclick="closeSettings()" style="display:flex;align-items:center;gap:6px;background:none;border:1.5px solid var(--border);border-radius:8px;padding:6px 14px;font-size:0.83rem;color:var(--navy);cursor:pointer;font-weight:500;" onmouseover="this.style.background='var(--bg-alt)'" onmouseout="this.style.background='none'">
+        &#8592; Back
+      </button>
+      <div>
+        <h2 style="margin:0;font-size:1.15rem;font-weight:700;color:var(--navy);">Settings</h2>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">Changes are saved to the database and shared across all users</div>
+      </div>
+    </div>
+
+    <!-- Holdings Library card -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-head">
+        <div>
+          <h3>Holdings Library</h3>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Pre-load funds so the Advisor Tool autocomplete works even before a client file is imported</div>
+        </div>
+        <button class="rebal-ghost-btn" onclick="addLibraryRow()" style="border-color:rgba(255,255,255,0.4);color:#fff;white-space:nowrap;">+ Add Fund</button>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table class="settings-table" style="width:100%;">
+          <thead><tr><th style="width:40%;">Fund Name / Description</th><th style="width:15%;">Symbol / Code</th><th style="width:35%;">Asset Class</th><th style="width:10%;"></th></tr></thead>
+          <tbody id="holdings-library-tbody"></tbody>
+        </table>
+        <div id="holdings-library-empty" style="display:none;text-align:center;padding:32px 0;color:var(--muted);font-size:0.85rem;">No funds yet — click <strong>+ Add Fund</strong> to get started.</div>
+      </div>
+    </div>
+
+    <!-- Product Map card -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Product Map</h3>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Map fund names to asset classes — any holding whose description contains the product name will be auto-classified</div>
+        </div>
+        <button class="rebal-ghost-btn" onclick="addProductRow()" style="border-color:rgba(255,255,255,0.4);color:#fff;white-space:nowrap;">+ Add Product</button>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table class="settings-table" style="width:100%;">
+          <thead><tr><th style="width:55%;">Product Name (partial match)</th><th style="width:35%;">Asset Class</th><th style="width:10%;"></th></tr></thead>
+          <tbody id="product-map-tbody"></tbody>
+        </table>
+        <div id="product-map-empty" style="display:none;text-align:center;padding:32px 0;color:var(--muted);font-size:0.85rem;">No mappings yet — click <strong>+ Add Product</strong> to get started.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Trade Summary Modal -->
@@ -1096,7 +1137,6 @@ async function buildReport() {
     await sleep(400);
     ps.style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
-    document.getElementById('settings-gear-btn').style.display = 'flex';
     state.currentClientId = null;
     document.getElementById('topbar-client').textContent = '';
     document.getElementById('btn-topbar-save').style.display = 'block';
@@ -1979,7 +2019,7 @@ function handleRebalDescInput(input, idx) {
   const matches = pool.filter(h => h.desc.toLowerCase().includes(q)).slice(0, 8);
   if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
   list.innerHTML = matches.map(h =>
-    `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
+    `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-symbol="${escHtml(h.symbol||'')}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
       onmousedown="selectRebalAutocomplete(event,${idx})">${escHtml(h.desc)}</div>`
   ).join('');
   list.classList.add('open');
@@ -1990,7 +2030,9 @@ function selectRebalAutocomplete(event, idx) {
   const item = event.currentTarget;
   const desc = item.dataset.desc;
   const ac = item.dataset.ac;
+  const sym = item.dataset.symbol;
   state.rebalanceNew[idx].desc = desc;
+  if (sym) state.rebalanceNew[idx].symbol = sym;
   if (ac) state.rebalanceNew[idx].assetClass = ac;
   renderAdvisor();
 }
@@ -2021,6 +2063,7 @@ function handleRebalDescKey(event, input, idx) {
     if (highlighted) {
       event.preventDefault();
       state.rebalanceNew[idx].desc = highlighted.dataset.desc;
+      if (highlighted.dataset.symbol) state.rebalanceNew[idx].symbol = highlighted.dataset.symbol;
       if (highlighted.dataset.ac) state.rebalanceNew[idx].assetClass = highlighted.dataset.ac;
       renderAdvisor();
     }
@@ -2232,40 +2275,125 @@ function appendAiMsg(role, text, thinking = false) {
 }
 
 // ── RETURNS ──
-function renderReturns() {
+function renderReturnsStats() {
   const r = state.returns;
   if (!r || !r.length) return;
-
   const lastMV = r[r.length - 1].endMV;
-  const totalInvested = r.reduce((s, row) => s + row.inflows - row.outflows, 0);
+  const totalInvested = r.reduce((s, row) => s + (row.inflows || 0) - (row.outflows || 0), 0);
   const totalGain = lastMV - totalInvested;
-  const cumROR = r.reduce((prod, row) => prod * (1 + row.ror), 1) - 1;
-
+  const cumROR = r.reduce((prod, row) => prod * (1 + (row.ror || 0)), 1) - 1;
   document.getElementById('returns-stats').innerHTML = `
     <div class="stat-card"><div class="lbl">Current Market Value</div><div class="val">${fmt$(lastMV)}</div></div>
     <div class="stat-card"><div class="lbl">Total Invested</div><div class="val">${fmt$(totalInvested)}</div></div>
     <div class="stat-card"><div class="lbl">Total Gain</div><div class="val ${clsSign(totalGain)}">${totalGain >= 0 ? '+' : ''}${fmt$(totalGain)}</div></div>
     <div class="stat-card"><div class="lbl">Cumulative ROR</div><div class="val ${clsSign(cumROR)}">${fmtPct(cumROR)}</div></div>
   `;
+}
+
+function renderReturns() {
+  const r = state.returns;
+  if (!r || !r.length) return;
+  renderReturnsStats();
 
   const tbody = document.getElementById('returns-tbody');
   tbody.innerHTML = '';
-  r.forEach(row => {
+
+  r.forEach((row, i) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row.period}</td>
-      <td class="r">${fmt$(row.begMV)}</td>
-      <td class="r">${fmt$(row.inflows)}</td>
-      <td class="r">${fmt$(row.outflows)}</td>
-      <td class="r">${fmt$(row.netFlows)}</td>
-      <td class="r">${fmt$(row.endMV)}</td>
-      <td class="r ${clsSign(row.changeMV)}">${row.changeMV >= 0 ? '+' : ''}${fmt$(row.changeMV)}</td>
-      <td class="r ${clsSign(row.ror)}">${fmtPct(row.ror)}</td>
-      <td class="r ${clsSign(row.spx)}">${fmtPct(row.spx)}</td>
-      <td class="r ${clsSign(row.tsx)}">${fmtPct(row.tsx)}</td>
-    `;
+
+    function eCell(cls, val, field, isNum) {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.contentEditable = 'true';
+      td.textContent = isNum ? (val || 0) : (val || '');
+      td.addEventListener('blur', () => {
+        const raw = td.textContent.trim().replace(/[$,%\s]/g, '');
+        if (isNum) {
+          row[field] = parseFloat(raw) || 0;
+          row.netFlows = (row.inflows || 0) - (row.outflows || 0);
+          row.changeMV = (row.endMV || 0) - (row.begMV || 0);
+          const denom  = (row.begMV || 0) + (row.netFlows || 0);
+          if (denom !== 0) row.ror = row.changeMV / denom;
+          // update the ROR cell in this row to reflect new value
+          const rorTd = tr.querySelector('[data-pct="ror"]');
+          if (rorTd) rorTd.textContent = ((row.ror || 0) * 100).toFixed(2);
+        } else {
+          row[field] = td.textContent.trim();
+        }
+        renderReturnsStats();
+        renderFinal();
+        saveClient();
+      });
+      td.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); td.blur(); } });
+      return td;
+    }
+
+    // derived cells (read-only look but recalc automatically)
+    function derivedCell(cls, val) {
+      const td = document.createElement('td');
+      td.className = cls;
+      td.textContent = val;
+      return td;
+    }
+
+    tr.appendChild(eCell('', row.period, 'period', false));
+    tr.appendChild(eCell('r', row.begMV, 'begMV', true));
+    tr.appendChild(eCell('r', row.inflows, 'inflows', true));
+    tr.appendChild(eCell('r', row.outflows, 'outflows', true));
+    tr.appendChild(derivedCell('r cell-muted', fmt$(row.netFlows)));
+    tr.appendChild(eCell('r', row.endMV, 'endMV', true));
+    tr.appendChild(derivedCell(`r cell-muted ${clsSign(row.changeMV)}`, (row.changeMV >= 0 ? '+' : '') + fmt$(row.changeMV)));
+
+    // ROR/SPX/TSX stored as decimals (0.05 = 5%) but displayed/edited as percentages
+    function pctCell(field) {
+      const td = document.createElement('td');
+      td.className = 'r';
+      td.contentEditable = 'true';
+      td.dataset.pct = field;
+      td.textContent = ((row[field] || 0) * 100).toFixed(2);
+      td.addEventListener('blur', () => {
+        row[field] = (parseFloat(td.textContent.replace(/[%,\s]/g, '')) || 0) / 100;
+        renderReturnsStats();
+        renderFinal();
+        saveClient();
+      });
+      td.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); td.blur(); } });
+      return td;
+    }
+    tr.appendChild(pctCell('ror'));
+    tr.appendChild(pctCell('spx'));
+    tr.appendChild(pctCell('tsx'));
+
+    // delete button
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.className = 'settings-del-btn';
+    delBtn.innerHTML = '&#x2715;';
+    delBtn.style.opacity = '0';
+    tr.addEventListener('mouseenter', () => delBtn.style.opacity = '1');
+    tr.addEventListener('mouseleave', () => delBtn.style.opacity = '0');
+    delBtn.addEventListener('click', () => {
+      state.returns.splice(i, 1);
+      renderReturns();
+      renderFinal();
+      saveClient();
+    });
+    delTd.appendChild(delBtn);
+    tr.appendChild(delTd);
+
     tbody.appendChild(tr);
   });
+}
+
+function addReturnRow() {
+  if (!state.returns) state.returns = [];
+  state.returns.push({ period: '', begMV: 0, inflows: 0, outflows: 0, netFlows: 0, endMV: 0, changeMV: 0, ror: 0, spx: 0, tsx: 0 });
+  renderReturns();
+  saveClient();
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#returns-tbody tr');
+    if (rows.length) rows[rows.length - 1].querySelector('[contenteditable]').focus();
+  }, 30);
 }
 
 // ── FINAL ──
@@ -2396,17 +2524,17 @@ function renderFinal() {
       </div>
 
       <!-- Row 3: Asset Allocation (full width) -->
-      <div style="margin-bottom:1rem;">
+      <div style="margin-bottom:0.5rem;">
         <div class="fp-section-title">Investment Asset Allocation</div>
-        <div style="height:200px;position:relative;"><canvas id="fp-alloc"></canvas></div>
+        <div style="height:175px;position:relative;"><canvas id="fp-alloc"></canvas></div>
       </div>
 
       ${notes ? `
-      <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px solid var(--border);">
-        <div style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Advisor Notes</div>
-        <div style="font-size:0.82rem;line-height:1.7;white-space:pre-wrap;">${escHtml(notes)}</div>
+      <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px solid var(--border);">
+        <div style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Advisor Notes</div>
+        <div style="font-size:0.82rem;line-height:1.5;white-space:pre-wrap;">${escHtml(notes)}</div>
       </div>` : ''}
-      <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);line-height:1.7;">
+      <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);line-height:1.5;">
         This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions.
         Aligned Capital Partners Inc. is regulated by the Canadian Investment Regulatory Organization (CIRO) and Member of the Canadian Investor Protection Fund (CIPF).
       </div>
@@ -2505,17 +2633,30 @@ function renderFinal() {
 
   const ret = state.returns || [];
   let invested = 0;
-  const investedData = ret.map(row => { invested += row.inflows - row.outflows; return invested; });
+  const retWithInvested = ret.map(row => { invested += row.inflows - row.outflows; return { ...row, invested }; });
+  // Only chart periods where there is actually money in the account
+  const meaningfulRows = retWithInvested.filter(r => r.endMV > 0 || r.invested > 0);
+  const chartRows = meaningfulRows.length >= 2 ? meaningfulRows : retWithInvested;
+  const mvData = chartRows.map(r => r.endMV);
+  const investedData = chartRows.map(r => r.invested);
   const mvYMin = parseFloat(state.chartOpts?.mvYMin) || undefined;
   const mvYMax = parseFloat(state.chartOpts?.mvYMax) || undefined;
   const showInvested = state.chartOpts?.showInvested !== false;
+  // Auto-scale Y-axis: if data clusters well above 0, zoom in to show variation
+  const allChartVals = mvData.concat(showInvested ? investedData : []).filter(v => v > 0);
+  const maxChartVal = allChartVals.length ? Math.max(...allChartVals) : 0;
+  const minChartVal = allChartVals.length ? Math.min(...allChartVals) : 0;
+  const autoYMin = (minChartVal > maxChartVal * 0.5)
+    ? Math.floor(minChartVal * 0.9 / 1000) * 1000
+    : 0;
+  const effectiveYMin = mvYMin !== undefined ? mvYMin : autoYMin;
   if (ret.length) {
     _mvChart = new Chart(document.getElementById('fp-mv'), {
       type: 'line',
       data: {
-        labels: ret.map(row => row.period.replace(' 20'," '")),
+        labels: chartRows.map(row => row.period.replace(' 20'," '")),
         datasets: [
-          { label: 'Ending Market Value', data: ret.map(r => r.endMV), borderColor: '#0f1f3d', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2, tension: 0.3 },
+          { label: 'Ending Market Value', data: mvData, borderColor: '#0f1f3d', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2, tension: 0.3 },
           ...(showInvested ? [{ label: 'Invested Capital', data: investedData, borderColor: '#9ca3af', backgroundColor: 'transparent', pointRadius: 2, borderWidth: 1.5, tension: 0.3, borderDash: [4,3] }] : [])
         ]
       },
@@ -2525,7 +2666,7 @@ function renderFinal() {
         plugins: { legend: { labels: { font:{size:10}, boxWidth:14, padding:10 } } },
         scales: {
           x: { ticks: { font:{size:9} }, grid: { display: false } },
-          y: { min: mvYMin, max: mvYMax, ticks: { font:{size:9}, callback: v => { if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; } }, grid: { color:'#f3f0eb' } }
+          y: { min: effectiveYMin, max: mvYMax, ticks: { font:{size:9}, callback: v => { if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1000)+'k'; return '$'+v; } }, grid: { color:'#f3f0eb' } }
         }
       }
     });
@@ -2730,7 +2871,6 @@ async function loadClient(id) {
     document.getElementById('upload-screen').style.display    = 'none';
     document.getElementById('progress-screen').style.display  = 'none';
     document.getElementById('app-screen').style.display       = 'block';
-    document.getElementById('settings-gear-btn').style.display = 'flex';
     document.getElementById('topbar-client').textContent      = client.name;
     document.getElementById('btn-topbar-save').style.display  = 'block';
 
@@ -2829,11 +2969,11 @@ function newReview() {
   if (ymax) ymax.value = '';
   if (si)   si.checked = true;
 
+  document.querySelector('.main-layout').style.display     = 'flex';
   document.getElementById('upload-screen').style.display   = 'flex';
   document.getElementById('progress-screen').style.display = 'none';
   document.getElementById('app-screen').style.display      = 'none';
-  document.getElementById('settings-gear-btn').style.display = 'none';
-  document.getElementById('settings-overlay').style.display = 'none';
+  document.getElementById('settings-screen').style.display = 'none';
 
   loadClientList();
 }
@@ -2859,15 +2999,33 @@ function showToast(msg) {
 }
 
 // ── PLATFORM SETTINGS ──
-function loadSettings() {
+async function loadSettings() {
   try {
-    const saved = localStorage.getItem('jrl_settings');
-    if (saved) state.settings = JSON.parse(saved);
-  } catch (_) {}
+    const res = await fetch('/api/settings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') state.settings = data;
+    }
+  } catch (_) {
+    try {
+      const saved = localStorage.getItem('jrl_settings');
+      if (saved) state.settings = JSON.parse(saved);
+    } catch (_) {}
+  }
 }
 
+let _saveSettingsTimer;
 function saveSettings() {
-  localStorage.setItem('jrl_settings', JSON.stringify(state.settings));
+  clearTimeout(_saveSettingsTimer);
+  _saveSettingsTimer = setTimeout(async () => {
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.settings)
+      });
+    } catch (_) {}
+  }, 400);
 }
 
 const ASSET_CLASS_OPTIONS = [
@@ -2880,7 +3038,7 @@ const ASSET_CLASS_OPTIONS = [
 function renderProductMap() {
   const tbody = document.getElementById('product-map-tbody');
   if (!tbody) return;
-  const rows = state.settings.productMap;
+  const rows = state.settings.productMap || [];
   tbody.innerHTML = rows.map((r, i) => `
     <tr>
       <td><input type="text" value="${escHtml(r.name)}" oninput="state.settings.productMap[${i}].name=this.value;saveSettings();" placeholder="e.g. Pickton Global Innovators"></td>
@@ -2892,12 +3050,19 @@ function renderProductMap() {
       </td>
       <td><button class="settings-del-btn" onclick="removeProductRow(${i})">&#x2715;</button></td>
     </tr>`).join('');
+  const empty = document.getElementById('product-map-empty');
+  if (empty) empty.style.display = rows.length ? 'none' : 'block';
 }
 
 function addProductRow() {
+  if (!state.settings.productMap) state.settings.productMap = [];
   state.settings.productMap.push({ name: '', assetClass: '' });
   saveSettings();
   renderProductMap();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#product-map-tbody input[type="text"]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 30);
 }
 
 function removeProductRow(i) {
@@ -2913,8 +3078,8 @@ function renderHoldingsLibrary() {
   const rows = state.settings.holdingsLibrary;
   tbody.innerHTML = rows.map((r, i) => `
     <tr>
-      <td><input type="text" value="${escHtml(r.desc||'')}" oninput="state.settings.holdingsLibrary[${i}].desc=this.value;saveSettings();" placeholder="e.g. Pickton Global Innovators Fund"></td>
-      <td><input type="text" value="${escHtml(r.symbol||'')}" oninput="state.settings.holdingsLibrary[${i}].symbol=this.value;saveSettings();" placeholder="e.g. PGI" style="width:80px;"></td>
+      <td><input type="text" value="${escHtml(r.desc||'')}" oninput="state.settings.holdingsLibrary[${i}].desc=this.value;saveSettings();" placeholder="e.g. Fidelity Canadian Balanced Fund"></td>
+      <td><input type="text" value="${escHtml(r.symbol||'')}" oninput="state.settings.holdingsLibrary[${i}].symbol=this.value;saveSettings();" placeholder="e.g. FID123"></td>
       <td>
         <select onchange="state.settings.holdingsLibrary[${i}].assetClass=this.value;saveSettings();">
           <option value="">— Select —</option>
@@ -2923,6 +3088,34 @@ function renderHoldingsLibrary() {
       </td>
       <td><button class="settings-del-btn" onclick="removeLibraryRow(${i})">&#x2715;</button></td>
     </tr>`).join('');
+  const empty = document.getElementById('holdings-library-empty');
+  if (empty) empty.style.display = rows.length ? 'none' : 'block';
+}
+
+function addHoldingsToLibrary() {
+  if (!state.holdings || !state.holdings.length) {
+    showToast('No holdings loaded yet.');
+    return;
+  }
+  if (!state.settings.holdingsLibrary) state.settings.holdingsLibrary = [];
+  const existing = new Set(state.settings.holdingsLibrary.map(h => (h.desc || '').toLowerCase()));
+  let added = 0;
+  for (const h of state.holdings) {
+    if (!h.desc || existing.has(h.desc.toLowerCase())) continue;
+    state.settings.holdingsLibrary.push({
+      desc: h.desc,
+      symbol: h.symbol || '',
+      assetClass: h.assetClass || ''
+    });
+    existing.add(h.desc.toLowerCase());
+    added++;
+  }
+  if (added === 0) {
+    showToast('All holdings are already in the library.');
+    return;
+  }
+  saveSettings();
+  showToast(`${added} fund${added !== 1 ? 's' : ''} added to library. Open Settings to add codes.`);
 }
 
 function addLibraryRow() {
@@ -2932,7 +3125,7 @@ function addLibraryRow() {
   renderHoldingsLibrary();
   setTimeout(() => {
     const inputs = document.querySelectorAll('#holdings-library-tbody input[type="text"]');
-    if (inputs.length) inputs[inputs.length - 3].focus();
+    if (inputs.length) inputs[inputs.length - 2].focus();
   }, 30);
 }
 
@@ -2942,22 +3135,28 @@ function removeLibraryRow(i) {
   renderHoldingsLibrary();
 }
 
-function toggleSettings() {
-  const overlay = document.getElementById('settings-overlay');
-  const open = overlay.style.display !== 'none' && overlay.style.display !== '';
-  if (open) {
-    overlay.style.display = 'none';
-  } else {
-    overlay.style.display = 'flex';
-    renderProductMap();
-    renderHoldingsLibrary();
-  }
+let _settingsPrevScreen = null;
+
+function showSettings() {
+  _settingsPrevScreen = document.getElementById('app-screen').style.display !== 'none' ? 'app' : 'upload';
+  document.querySelector('.main-layout').style.display    = 'none';
+  document.getElementById('settings-screen').style.display = 'block';
+  renderProductMap();
+  renderHoldingsLibrary();
 }
 
+function closeSettings() {
+  document.getElementById('settings-screen').style.display = 'none';
+  document.querySelector('.main-layout').style.display    = 'flex';
+}
+
+function toggleSettings() { showSettings(); }
+
 // Load settings and render product map on startup
-loadSettings();
-renderProductMap();
-renderHoldingsLibrary();
+loadSettings().then(() => {
+  renderProductMap();
+  renderHoldingsLibrary();
+});
 
 // Load client list on startup
 loadClientList();
@@ -3082,7 +3281,7 @@ async function sendAgentMessage() {
 </script>
 
 <!-- Settings gear button -->
-<button id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="position:fixed;bottom:24px;left:24px;z-index:9998;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);color:var(--navy);cursor:pointer;box-shadow:0 2px 10px rgba(15,31,61,0.15);display:none;align-items:center;justify-content:center;transition:transform 0.18s,box-shadow 0.18s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 18px rgba(15,31,61,0.22)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 10px rgba(15,31,61,0.15)'">
+<button id="settings-gear-btn" onclick="toggleSettings()" title="Settings" style="position:fixed;bottom:24px;left:24px;z-index:9998;width:40px;height:40px;border-radius:50%;background:var(--white);border:1.5px solid var(--border);color:var(--navy);cursor:pointer;box-shadow:0 2px 10px rgba(15,31,61,0.15);display:flex;align-items:center;justify-content:center;transition:transform 0.18s,box-shadow 0.18s;" onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 18px rgba(15,31,61,0.22)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 10px rgba(15,31,61,0.15)'">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
 </button>
 
