@@ -2616,6 +2616,14 @@ function renderFinal() {
     }))
     .filter(ds => ds.data.some(v => v > 0));
   if (datasets.length) {
+    // Find the highest stacked bar total so we can zoom the x-axis in
+    const numGroups = groupLabels.length;
+    const groupTotals = Array.from({ length: numGroups }, (_, i) =>
+      datasets.reduce((s, ds) => s + (ds.data[i] || 0), 0)
+    );
+    const maxStack = Math.max(...groupTotals);
+    const xMax = Math.ceil((maxStack + 15) / 10) * 10; // round up to nearest 10 with 15% headroom
+
     _allocChart = new Chart(document.getElementById('fp-alloc'), {
       type: 'bar',
       plugins: [ChartDataLabels],
@@ -2630,19 +2638,15 @@ function renderFinal() {
             display: ctx => ctx.dataset.data[ctx.dataIndex] >= 3,
             formatter: (val, ctx) => `${ctx.dataset.label}\n${val.toFixed(1)}%`,
             color: ctx => {
-              if (ctx.dataset.data[ctx.dataIndex] < 8) return '#1a1a2e';
               const dark = ['#375623','#0F1F3D'];
               return dark.includes(ctx.dataset.backgroundColor) ? '#fff' : '#1a1a2e';
             },
             font: { size: 9, weight: '600' },
-            anchor: ctx => ctx.dataset.data[ctx.dataIndex] < 8 ? 'end' : 'center',
-            align: ctx => ctx.dataset.data[ctx.dataIndex] < 8 ? 'right' : 'center',
-            textAlign: 'center',
-            offset: ctx => ctx.dataset.data[ctx.dataIndex] < 8 ? 4 : 0,
+            anchor: 'center', align: 'center', textAlign: 'center',
           }
         },
         scales: {
-          x: { stacked: true, ticks: { font:{size:10}, callback: v => v+'%' }, grid: { color:'#f3f0eb' }, max: 100 },
+          x: { stacked: true, ticks: { font:{size:10}, callback: v => v+'%' }, grid: { color:'#f3f0eb' }, max: xMax },
           y: { stacked: true, ticks: { font:{size:10} } }
         }
       }
