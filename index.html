@@ -2422,16 +2422,17 @@ function renderFinal() {
   const totA = totA_a+totA_b+totA_j;
   const totL = totL_a+totL_b+totL_j;
   const nw   = totA - totL;
+  const showB = totA_b !== 0 || totL_b !== 0;
 
   const assetRows = Object.entries(state.nwAssets).map(([name, v]) => {
     const t = (v.a||0)+(v.b||0)+(v.j||0);
     if (t === 0) return '';
-    return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
+    return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td>${showB ? `<td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td>` : ''}<td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
   }).join('');
   const liabRows = Object.entries(state.nwLiab).map(([name, v]) => {
     const t = (v.a||0)+(v.b||0)+(v.j||0);
     if (t === 0) return '';
-    return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
+    return `<tr><td style="padding:4px 6px;">${name}</td><td style="text-align:right;padding:4px 6px;">${fmtC(v.a)}</td>${showB ? `<td style="text-align:right;padding:4px 6px;">${fmtC(v.b)}</td>` : ''}<td style="text-align:right;padding:4px 6px;">${fmtC(v.j)}</td><td style="text-align:right;padding:4px 6px;">${fmtC(t)}</td></tr>`;
   }).join('');
 
   const ret0       = state.returns || [];
@@ -2469,7 +2470,7 @@ function renderFinal() {
             <thead><tr>
               <th style="text-align:left;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);"></th>
               <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().a}</th>
-              <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().b}</th>
+              ${showB ? `<th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">${clientNames().b}</th>` : ''}
               <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Joint</th>
               <th style="text-align:right;padding:5px 6px;font-size:0.7rem;color:var(--muted);border-bottom:1px solid var(--border);">Total</th>
             </tr></thead>
@@ -2478,7 +2479,7 @@ function renderFinal() {
               <tr style="font-weight:600;border-top:1px solid var(--border);">
                 <td style="padding:5px 6px;">Total Assets</td>
                 <td style="text-align:right;padding:5px 6px;">${fmtC(totA_a)}</td>
-                <td style="text-align:right;padding:5px 6px;">${fmtC(totA_b)}</td>
+                ${showB ? `<td style="text-align:right;padding:5px 6px;">${fmtC(totA_b)}</td>` : ''}
                 <td style="text-align:right;padding:5px 6px;">${fmtC(totA_j)}</td>
                 <td style="text-align:right;padding:5px 6px;">${fmtC(totA)}</td>
               </tr>
@@ -2486,14 +2487,14 @@ function renderFinal() {
               <tr style="font-weight:600;border-top:1px solid var(--border);">
                 <td style="padding:5px 6px;">Total Liabilities</td>
                 <td style="text-align:right;padding:5px 6px;">${fmtC(totL_a)}</td>
-                <td style="text-align:right;padding:5px 6px;">${fmtC(totL_b)}</td>
+                ${showB ? `<td style="text-align:right;padding:5px 6px;">${fmtC(totL_b)}</td>` : ''}
                 <td style="text-align:right;padding:5px 6px;">${fmtC(totL_j)}</td>
                 <td style="text-align:right;padding:5px 6px;">${fmtC(totL)}</td>
               </tr>
               <tr style="font-weight:700;background:var(--navy);color:#fff;">
                 <td style="padding:6px 6px;">Net Worth</td>
                 <td style="text-align:right;padding:6px 6px;">${fmtC(totA_a-totL_a)}</td>
-                <td style="text-align:right;padding:6px 6px;">${fmtC(totA_b-totL_b)}</td>
+                ${showB ? `<td style="text-align:right;padding:6px 6px;">${fmtC(totA_b-totL_b)}</td>` : ''}
                 <td style="text-align:right;padding:6px 6px;">${fmtC(totA_j-totL_j)}</td>
                 <td style="text-align:right;padding:6px 6px;">${fmtC(nw)}</td>
               </tr>
@@ -2506,38 +2507,38 @@ function renderFinal() {
         </div>
       </div>
 
-      <!-- Row 2: MV History (full width) + Performance at a Glance callout -->
-      <div style="margin-bottom:1.75rem;">
-        <div class="fp-section-title">Investable Assets — Market Value History</div>
-        <div style="height:200px;position:relative;"><canvas id="fp-mv"></canvas></div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:0.75rem;border:1px solid #e2ddd6;border-radius:8px;overflow:hidden;">
-          <div style="padding:10px 16px;border-right:1px solid #e2ddd6;background:#faf8f4;">
-            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Net Contributions</div>
-            <div style="font-size:1rem;font-weight:600;color:#0f1f3d;">${fmt$(netContrib)}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">Total cash deposited</div>
-          </div>
-          <div style="padding:10px 16px;border-right:1px solid #e2ddd6;background:#faf8f4;">
-            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Market Gain</div>
-            <div style="font-size:1rem;font-weight:600;color:${gainClr};">${marketGain >= 0 ? '+' : ''}${fmt$(marketGain)}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">Growth from investing</div>
-          </div>
-          <div style="padding:10px 16px;border-right:1px solid #e2ddd6;background:#faf8f4;">
-            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Time-Weighted Return</div>
-            <div style="font-size:1rem;font-weight:600;color:${rorClr};">${cumROR >= 0 ? '+' : ''}${(cumROR * 100).toFixed(2)}%</div>
-            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">Cash-flow adjusted</div>
-          </div>
-          <div style="padding:10px 16px;background:#faf8f4;">
-            <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:4px;">Ending Market Value</div>
-            <div style="font-size:1rem;font-weight:600;color:#0f1f3d;">${fmt$(lastEndMV)}</div>
-            <div style="font-size:0.6rem;color:#9ca3af;margin-top:3px;">${perfPeriod}</div>
+      <!-- Row 2: Asset Allocation (left) + MV History (right) side by side -->
+      <div style="display:grid;grid-template-columns:2fr 3fr;gap:1.5rem;margin-bottom:0.5rem;">
+        <div>
+          <div class="fp-section-title">Investment Asset Allocation</div>
+          <div style="height:220px;position:relative;"><canvas id="fp-alloc"></canvas></div>
+        </div>
+        <div>
+          <div class="fp-section-title">Investable Assets — Market Value History</div>
+          <div style="height:175px;position:relative;"><canvas id="fp-mv"></canvas></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);margin-top:0.5rem;border:1px solid #e2ddd6;border-radius:8px;overflow:hidden;">
+            <div style="padding:8px 10px;border-right:1px solid #e2ddd6;background:#faf8f4;">
+              <div style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:3px;">Net Contributions</div>
+              <div style="font-size:0.88rem;font-weight:600;color:#0f1f3d;">${fmt$(netContrib)}</div>
+              <div style="font-size:0.55rem;color:#9ca3af;margin-top:2px;">Total cash deposited</div>
+            </div>
+            <div style="padding:8px 10px;border-right:1px solid #e2ddd6;background:#faf8f4;">
+              <div style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:3px;">Market Gain</div>
+              <div style="font-size:0.88rem;font-weight:600;color:${gainClr};">${marketGain >= 0 ? '+' : ''}${fmt$(marketGain)}</div>
+              <div style="font-size:0.55rem;color:#9ca3af;margin-top:2px;">Growth from investing</div>
+            </div>
+            <div style="padding:8px 10px;border-right:1px solid #e2ddd6;background:#faf8f4;">
+              <div style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:3px;">Time-Weighted Return</div>
+              <div style="font-size:0.88rem;font-weight:600;color:${rorClr};">${cumROR >= 0 ? '+' : ''}${(cumROR * 100).toFixed(2)}%</div>
+              <div style="font-size:0.55rem;color:#9ca3af;margin-top:2px;">Cash-flow adjusted</div>
+            </div>
+            <div style="padding:8px 10px;background:#faf8f4;">
+              <div style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.09em;color:#6b7280;margin-bottom:3px;">Ending Market Value</div>
+              <div style="font-size:0.88rem;font-weight:600;color:#0f1f3d;">${fmt$(lastEndMV)}</div>
+              <div style="font-size:0.55rem;color:#9ca3af;margin-top:2px;">${perfPeriod}</div>
+            </div>
           </div>
         </div>
-      </div>
-
-      <!-- Row 3: Asset Allocation (full width) -->
-      <div style="margin-bottom:0.5rem;">
-        <div class="fp-section-title">Investment Asset Allocation</div>
-        <div style="height:175px;position:relative;"><canvas id="fp-alloc"></canvas></div>
       </div>
 
       ${notes ? `
@@ -2545,9 +2546,11 @@ function renderFinal() {
         <div style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Advisor Notes</div>
         <div style="font-size:0.82rem;line-height:1.5;white-space:pre-wrap;">${escHtml(notes)}</div>
       </div>` : ''}
-      <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);line-height:1.5;">
-        This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions.
-        Aligned Capital Partners Inc. is regulated by the Canadian Investment Regulatory Organization (CIRO) and Member of the Canadian Investor Protection Fund (CIPF).
+      <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.65rem;color:var(--muted);line-height:1.5;">
+        This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions. Please note some holdings shown in this statement may not be covered by CIPF.
+        Please consult your ACPI statements and/or your Advisor to determine which positions are eligible for Canadian Investor Protection Fund coverage (www.cipf.ca), including information as to which positions are held in segregation.
+        Please report any discrepancies between the transactions or positions reported on your ACPI statements and those shown here to the ACPI Business Integrity department at 905-639-5115.
+        Aligned Capital Partners Inc. is regulated by the Investment Industry Regulatory Organization of Canada (IIROC) and Member of the Canadian Investor Protection Fund (CIPF).
       </div>
     </div>
   `;
