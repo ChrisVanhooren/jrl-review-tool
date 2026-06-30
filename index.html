@@ -2627,14 +2627,18 @@ function renderFinal() {
           legend: { display: false },
           tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.x.toFixed(1)}%` } },
           datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] >= 4,
+            display: ctx => ctx.dataset.data[ctx.dataIndex] >= 3,
             formatter: (val, ctx) => `${ctx.dataset.label}\n${val.toFixed(1)}%`,
             color: ctx => {
+              if (ctx.dataset.data[ctx.dataIndex] < 8) return '#1a1a2e';
               const dark = ['#375623','#0F1F3D'];
               return dark.includes(ctx.dataset.backgroundColor) ? '#fff' : '#1a1a2e';
             },
             font: { size: 9, weight: '600' },
-            anchor: 'center', align: 'center', textAlign: 'center',
+            anchor: ctx => ctx.dataset.data[ctx.dataIndex] < 8 ? 'end' : 'center',
+            align: ctx => ctx.dataset.data[ctx.dataIndex] < 8 ? 'right' : 'center',
+            textAlign: 'center',
+            offset: ctx => ctx.dataset.data[ctx.dataIndex] < 8 ? 4 : 0,
           }
         },
         scales: {
