@@ -941,7 +941,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><h3>Internal Notes</h3><span class="badge">Not printed</span></div>
+      <div class="card-head"><h3>Internal Notes</h3><button onclick="printInternalNotes()" style="background:var(--gold);color:var(--navy);border:none;border-radius:5px;padding:5px 14px;font-size:0.78rem;font-weight:600;cursor:pointer;">Save as PDF</button></div>
       <div class="card-body">
         <div class="field-label" style="margin-bottom:6px;">Rebalancing notes / rationale</div>
         <textarea class="notes" id="rebal-notes" placeholder="e.g. Trim RBC Core Plus Bond from 11% → 5%, redeploy to US Equity Fund…" oninput="state.rebalanceNotes=this.value" style="min-height:130px;"></textarea>
@@ -2188,6 +2188,27 @@ function showTradeList() {
 
 function closeTradeList() {
   document.getElementById('trade-modal').style.display = 'none';
+}
+
+function printInternalNotes() {
+  const notes = document.getElementById('rebal-notes')?.value || '';
+  const client = document.getElementById('f-client')?.value || 'Client';
+  const date   = document.getElementById('f-date')?.value  || '';
+  const win = window.open('', '_blank', 'width=700,height=800');
+  win.document.write(`<!DOCTYPE html><html><head><title>Internal Notes</title>
+    <style>
+      body { font-family: 'Segoe UI', sans-serif; margin: 40px; color: #0f1f3d; }
+      h2 { font-size: 1.1rem; margin: 0 0 4px; }
+      .sub { font-size: 0.78rem; color: #6b7280; margin-bottom: 24px; }
+      .notes-body { font-size: 0.9rem; line-height: 1.8; white-space: pre-wrap; }
+      @media print { body { margin: 20px; } }
+    </style></head><body>
+    <h2>Internal Notes — ${escHtml(client)}</h2>
+    <div class="sub">${escHtml(date)}</div>
+    <div class="notes-body">${escHtml(notes)}</div>
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 function printTradeList() {
