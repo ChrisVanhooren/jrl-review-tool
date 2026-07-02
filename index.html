@@ -2544,7 +2544,7 @@ function renderFinal() {
       ${notes ? `
       <div style="margin-top:0.6rem;padding-top:0.5rem;border-top:1px solid var(--border);">
         <div style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Advisor Notes</div>
-        <div style="font-size:0.82rem;line-height:1.5;white-space:pre-wrap;">${escHtml(notes)}</div>
+        <div style="font-size:0.82rem;line-height:1.5;">${escHtml(notes).replace(/\n/g,'<br>')}</div>
       </div>` : ''}
       <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.65rem;color:var(--muted);line-height:1.5;">
         This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions. Please note some holdings shown in this statement may not be covered by CIPF.
