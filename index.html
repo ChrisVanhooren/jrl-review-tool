@@ -2178,7 +2178,7 @@ function showTradeList() {
         ${totalBuy  > 0 ? `<span style="color:#16a34a;font-weight:600;">Total buy: +${fmt$(totalBuy)}</span>`   : ''}
       </div>`;
     if (state.rebalanceNotes) {
-      html += `<div style="margin-top:16px;padding:12px 14px;background:#f8f5f0;border-radius:6px;font-size:0.78rem;color:var(--ink);line-height:1.6;"><strong style="display:block;margin-bottom:4px;color:var(--navy);">Advisor Notes</strong>${escHtml(state.rebalanceNotes)}</div>`;
+      html += `<div style="margin-top:16px;padding:12px 14px;background:#f8f5f0;border-radius:6px;font-size:0.78rem;color:var(--ink);line-height:1.6;"><strong style="display:block;margin-bottom:4px;color:var(--navy);">Advisor Notes</strong>${escHtml(state.rebalanceNotes).replace(/\n/g,'<br>')}</div>`;
     }
   }
 
@@ -2191,21 +2191,21 @@ function closeTradeList() {
 }
 
 function printInternalNotes() {
-  const notes = document.getElementById('rebal-notes')?.value || '';
-  const client = document.getElementById('f-client')?.value || 'Client';
-  const date   = document.getElementById('f-date')?.value  || '';
+  showTradeList();
+  const body = document.getElementById('trade-modal-body').innerHTML;
+  const sub  = document.getElementById('trade-modal-sub').textContent;
+  closeTradeList();
   const win = window.open('', '_blank', 'width=700,height=800');
-  win.document.write(`<!DOCTYPE html><html><head><title>Internal Notes</title>
+  win.document.write(`<!DOCTYPE html><html><head><title>Trade Instructions</title>
     <style>
       body { font-family: 'Segoe UI', sans-serif; margin: 40px; color: #0f1f3d; }
       h2 { font-size: 1.1rem; margin: 0 0 4px; }
       .sub { font-size: 0.78rem; color: #6b7280; margin-bottom: 24px; }
-      .notes-body { font-size: 0.9rem; line-height: 1.8; white-space: pre-wrap; }
       @media print { body { margin: 20px; } }
     </style></head><body>
-    <h2>Internal Notes — ${escHtml(client)}</h2>
-    <div class="sub">${escHtml(date)}</div>
-    <div class="notes-body">${escHtml(notes)}</div>
+    <h2>Trade Instructions</h2>
+    <div class="sub">${escHtml(sub)}</div>
+    ${body}
     <script>window.onload=()=>window.print()<\/script>
   </body></html>`);
   win.document.close();
