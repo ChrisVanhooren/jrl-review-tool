@@ -751,6 +751,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
     Build Report
   </button>
+  <div style="margin-top:0.85rem;text-align:center;">
+    <a href="#" onclick="startBlankClient();return false;" style="font-size:0.8rem;color:var(--muted);text-decoration:underline;">Skip — start with a blank client (new prospect, nothing to import yet)</a>
+  </div>
 </div>
 
 <!-- PROGRESS SCREEN -->
@@ -763,18 +766,56 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 <!-- APP SCREEN -->
 <div id="app-screen" style="display:none;">
   <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab(0)" id="tbtn-0"><span class="tab-dot"></span> Net Worth</button>
-    <button class="tab-btn filled" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Holdings</button>
-    <button class="tab-btn filled" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Monthly Returns</button>
-    <button class="tab-btn" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Final</button>
-    <button class="tab-btn" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Advisor Tool</button>
+    <button class="tab-btn active" onclick="switchTab(0)" id="tbtn-0"><span class="tab-dot"></span> Proposal</button>
+    <button class="tab-btn" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Net Worth</button>
+    <button class="tab-btn filled" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Holdings</button>
+    <button class="tab-btn filled" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Monthly Returns</button>
+    <button class="tab-btn" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Final</button>
+    <button class="tab-btn" onclick="switchTab(5)" id="tbtn-5"><span class="tab-dot"></span> Advisor Tool</button>
     <button class="tab-gear-btn" onclick="toggleSettings()" title="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
     </button>
   </div>
 
-  <!-- TAB 0: NET WORTH -->
+  <!-- TAB 0: PROPOSAL -->
   <div class="tab-content active" id="tab-0">
+    <div class="stats-row" id="proposal-stats"></div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Portfolio Proposal</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="addProposalRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Position
+          </button>
+          <button class="rebal-ghost-btn" onclick="printProposal()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Generate Proposal</button>
+          <span class="badge">Client-Facing</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(180px,240px));gap:1rem;margin-bottom:1rem;">
+          <div class="field-row"><div class="field-label">Portfolio Value</div><input class="nw-input" type="number" step="1" id="proposal-value" value="0" style="width:100%;text-align:left;" oninput="state.proposal.portfolioValue=+this.value||0;renderProposal();"></div>
+        </div>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table id="proposal-table">
+          <thead><tr>
+            <th>Investment Description</th>
+            <th>Symbol</th>
+            <th>Section</th>
+            <th>Region</th>
+            <th class="r">Allocation</th>
+            <th class="r">Dollar Value</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="proposal-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 1: NET WORTH -->
+  <div class="tab-content" id="tab-1">
     <div class="card">
       <div class="card-head"><h3>Client Names</h3><span class="badge">Editable</span></div>
       <div class="card-body">
@@ -804,8 +845,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 1: HOLDINGS -->
-  <div class="tab-content" id="tab-1">
+  <!-- TAB 2: HOLDINGS -->
+  <div class="tab-content" id="tab-2">
     <div class="stats-row" id="holdings-stats"></div>
     <div class="card">
       <div class="card-head">
@@ -833,8 +874,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 2: RETURNS -->
-  <div class="tab-content" id="tab-2">
+  <!-- TAB 3: RETURNS -->
+  <div class="tab-content" id="tab-3">
     <div class="stats-row" id="returns-stats"></div>
     <div class="card">
       <div class="card-head">
@@ -861,8 +902,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 3: FINAL -->
-  <div class="tab-content" id="tab-3">
+  <!-- TAB 4: FINAL -->
+  <div class="tab-content" id="tab-4">
     <div class="card" style="margin-bottom:1rem;">
       <div class="card-head"><h3>Report Details</h3></div>
       <div class="card-body">
@@ -908,8 +949,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 4: ADVISOR TOOL -->
-  <div class="tab-content" id="tab-4">
+  <!-- TAB 5: ADVISOR TOOL -->
+  <div class="tab-content" id="tab-5">
     <div class="stats-row" id="rebal-stats"></div>
     <div class="card">
       <div class="card-head">
@@ -1015,7 +1056,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       </div>
       <div class="card-body" style="overflow-x:auto;">
         <table class="settings-table" style="width:100%;">
-          <thead><tr><th style="width:40%;">Fund Name / Description</th><th style="width:15%;">Symbol / Code</th><th style="width:35%;">Asset Class</th><th style="width:10%;"></th></tr></thead>
+          <thead><tr><th style="width:28%;">Fund Name / Description</th><th style="width:10%;">Symbol / Code</th><th style="width:22%;">Asset Class</th><th style="width:16%;">Proposal Section</th><th style="width:16%;">Region</th><th style="width:8%;"></th></tr></thead>
           <tbody id="holdings-library-tbody"></tbody>
         </table>
         <div id="holdings-library-empty" style="display:none;text-align:center;padding:32px 0;color:var(--muted);font-size:0.85rem;">No funds yet — click <strong>+ Add Fund</strong> to get started.</div>
@@ -1091,6 +1132,7 @@ const state = {
   rebalanceRowNotes: {},
   rawImport: null,
   settings: { productMap: [], holdingsLibrary: [] },
+  proposal: { portfolioValue: 0, targets: [] },
 };
 
 // ── DRAG / DROP ──
@@ -1159,6 +1201,20 @@ async function buildReport() {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── BLANK START (new prospect, nothing to import) ──
+function startBlankClient() {
+  state.holdings = [];
+  state.returns = [];
+  state.currentClientId = null;
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('progress-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('topbar-client').textContent = '';
+  document.getElementById('btn-topbar-save').style.display = 'block';
+  renderAll();
+  switchTab(0);
+}
 
 // ── PARSE HOLDINGS (XLSX) ──
 function getAssetClass(symbol, desc) {
@@ -1439,6 +1495,7 @@ function getDefaultReturns() {
 
 // ── RENDER ALL ──
 function renderAll() {
+  renderProposal();
   renderNetWorth();
   renderHoldings();
   renderReturns();
@@ -1918,6 +1975,165 @@ function renderAdvisor() {
   if (notesEl && notesEl.value !== state.rebalanceNotes) notesEl.value = state.rebalanceNotes || '';
 }
 
+// ── PROPOSAL ──
+function renderProposal() {
+  const tbody = document.getElementById('proposal-tbody');
+  if (!tbody) return;
+  if (!state.proposal) state.proposal = { portfolioValue: 0, targets: [] };
+  const targets = state.proposal.targets || [];
+
+  const valInput = document.getElementById('proposal-value');
+  if (valInput && document.activeElement !== valInput) valInput.value = state.proposal.portfolioValue || 0;
+  const portfolioValue = state.proposal.portfolioValue || 0;
+
+  tbody.innerHTML = '';
+  let totalPct = 0;
+  targets.forEach((t, i) => {
+    totalPct += t.pct || 0;
+    const dollars = (t.pct || 0) / 100 * portfolioValue;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding:5px 10px;">
+        <div class="rebal-autocomplete-wrap">
+          <input type="text" class="rebal-new-input rebal-desc-input" placeholder="Fund name…" value="${escHtml(t.desc||'')}"
+            autocomplete="off"
+            oninput="handleProposalDescInput(this,${i})"
+            onkeydown="handleProposalDescKey(event,this,${i})"
+            onblur="setTimeout(()=>closeProposalAutocomplete(this),150)">
+          <div class="rebal-autocomplete-list" id="proposal-ac-${i}"></div>
+        </div>
+      </td>
+      <td style="padding:5px 10px;"><input type="text" class="rebal-new-input" placeholder="Symbol…" value="${escHtml(t.symbol||'')}" oninput="state.proposal.targets[${i}].symbol=this.value" style="width:90px;"></td>
+      <td style="padding:5px 10px;">
+        <select onchange="state.proposal.targets[${i}].section=this.value;if(this.value!=='Equity')state.proposal.targets[${i}].region='';renderProposal();" style="font-size:0.76rem;">
+          <option value="">— Select —</option>
+          ${PROPOSAL_SECTIONS.map(o => `<option value="${o}"${t.section===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:5px 10px;">
+        ${t.section === 'Equity' ? `
+        <select onchange="state.proposal.targets[${i}].region=this.value;" style="font-size:0.76rem;">
+          <option value="">— Select —</option>
+          ${PROPOSAL_REGIONS.map(o => `<option value="${o}"${t.region===o?' selected':''}>${o}</option>`).join('')}
+        </select>` : `<span style="color:var(--muted);font-size:0.75rem;">—</span>`}
+      </td>
+      <td class="r" style="padding-top:4px;padding-bottom:4px;">
+        <input class="rebal-input" type="number" step="0.1" min="0" max="100"
+          value="${(t.pct||0).toFixed(2)}"
+          data-pidx="${i}"
+          onchange="handleProposalPctInput(this)">
+      </td>
+      <td class="r">${fmt$(dollars)}</td>
+      <td><button onclick="removeProposalRow(${i})" class="rebal-del" title="Remove">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const tfr = document.createElement('tr');
+  tfr.className = 'tfoot-row';
+  const totalDollars = totalPct / 100 * portfolioValue;
+  tfr.innerHTML = `
+    <td colspan="4"><strong>Total</strong></td>
+    <td class="r" style="font-weight:600;">${totalPct.toFixed(2)}%</td>
+    <td class="r" style="font-weight:600;">${fmt$(totalDollars)}</td>
+    <td></td>
+  `;
+  tbody.appendChild(tfr);
+
+  const statsEl = document.getElementById('proposal-stats');
+  if (statsEl) statsEl.innerHTML = `
+    <div class="stat-card"><div class="lbl">Portfolio Value</div><div class="val">${fmt$(portfolioValue)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Allocated</div><div class="val">${totalPct.toFixed(2)}%</div></div>
+    <div class="stat-card"><div class="lbl">Allocated Dollars</div><div class="val">${fmt$(totalDollars)}</div></div>
+    <div class="stat-card"><div class="lbl">Positions</div><div class="val">${targets.length}</div></div>
+  `;
+}
+
+function addProposalRow() {
+  if (!state.proposal) state.proposal = { portfolioValue: 0, targets: [] };
+  if (!state.proposal.targets) state.proposal.targets = [];
+  state.proposal.targets.push({ desc: '', symbol: '', section: '', region: '', pct: 0 });
+  renderProposal();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#proposal-tbody .rebal-desc-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 30);
+}
+
+function removeProposalRow(i) {
+  state.proposal.targets.splice(i, 1);
+  renderProposal();
+}
+
+function handleProposalPctInput(input) {
+  const i = +input.dataset.pidx;
+  state.proposal.targets[i].pct = +input.value || 0;
+  renderProposal();
+}
+
+function handleProposalDescInput(input, idx) {
+  state.proposal.targets[idx].desc = input.value;
+  const q = input.value.trim().toLowerCase();
+  const list = document.getElementById('proposal-ac-' + idx);
+  if (!list) return;
+  if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  const library = (state.settings.holdingsLibrary || []).filter(h => h.desc);
+  const matches = library.filter(h => h.desc.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  list.innerHTML = matches.map(h =>
+    `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-symbol="${escHtml(h.symbol||'')}" data-section="${escHtml(h.proposalSection||'')}" data-region="${escHtml(h.proposalRegion||'')}"
+      onmousedown="selectProposalAutocomplete(event,${idx})">${escHtml(h.desc)}</div>`
+  ).join('');
+  list.classList.add('open');
+}
+
+function selectProposalAutocomplete(event, idx) {
+  event.preventDefault();
+  const item = event.currentTarget;
+  applyProposalAutocompleteItem(item, idx);
+  renderProposal();
+}
+
+function applyProposalAutocompleteItem(item, idx) {
+  state.proposal.targets[idx].desc = item.dataset.desc;
+  if (item.dataset.symbol)  state.proposal.targets[idx].symbol  = item.dataset.symbol;
+  if (item.dataset.section) state.proposal.targets[idx].section = item.dataset.section;
+  if (item.dataset.region)  state.proposal.targets[idx].region  = item.dataset.region;
+}
+
+function closeProposalAutocomplete(input) {
+  const wrap = input.closest('.rebal-autocomplete-wrap');
+  if (!wrap) return;
+  const list = wrap.querySelector('.rebal-autocomplete-list');
+  if (list) { list.classList.remove('open'); list.innerHTML = ''; }
+}
+
+function handleProposalDescKey(event, input, idx) {
+  const list = document.getElementById('proposal-ac-' + idx);
+  if (!list || !list.classList.contains('open')) return;
+  const items = list.querySelectorAll('.rebal-autocomplete-item');
+  const active = list.querySelector('.rebal-autocomplete-item.active');
+  let activeIdx = Array.from(items).indexOf(active);
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    if (active) active.classList.remove('active');
+    items[Math.min(activeIdx + 1, items.length - 1)].classList.add('active');
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (active) active.classList.remove('active');
+    items[Math.max(activeIdx - 1, 0)].classList.add('active');
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    const highlighted = list.querySelector('.rebal-autocomplete-item.active') || items[0];
+    if (highlighted) {
+      event.preventDefault();
+      applyProposalAutocompleteItem(highlighted, idx);
+      renderProposal();
+    }
+  } else if (event.key === 'Escape') {
+    list.classList.remove('open'); list.innerHTML = '';
+  }
+}
+
 function updateRebalStats(totalMV, totalTargetPct) {
   if (totalMV === undefined) {
     const h = state.holdings || [];
@@ -2225,6 +2441,109 @@ function printTradeList() {
     <h2>Trade Instructions</h2>
     <div class="sub">${escHtml(sub)}</div>
     ${body}
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ── PROPOSAL PDF ──
+function printProposal() {
+  const client = document.getElementById('f-client')?.value || 'Client';
+  const date   = document.getElementById('f-date')?.value  || '';
+  const portfolioValue = state.proposal?.portfolioValue || 0;
+  const rows = (state.proposal?.targets || []).filter(t => t.desc && (t.pct || 0) > 0);
+
+  function rowHtml(t, indent) {
+    const dollars = (t.pct || 0) / 100 * portfolioValue;
+    return `<tr>
+      <td style="padding:3px 6px;padding-left:${indent}px;">${escHtml(t.desc)}</td>
+      <td style="padding:3px 6px;">${escHtml(t.symbol||'—')}</td>
+      <td style="padding:3px 6px;text-align:right;">${(t.pct||0).toFixed(1)}%</td>
+      <td style="padding:3px 6px;text-align:right;">${fmtC(dollars) || '$0'}</td>
+    </tr>`;
+  }
+  function subtotalHtml(label, pct, dollars, indent) {
+    return `<tr style="font-weight:600;border-top:1px solid #e2ddd6;">
+      <td style="padding:3px 6px;padding-left:${indent}px;" colspan="2">${label}</td>
+      <td style="padding:3px 6px;text-align:right;">${pct.toFixed(1)}%</td>
+      <td style="padding:3px 6px;text-align:right;">${fmtC(dollars) || '$0'}</td>
+    </tr>`;
+  }
+  function sectionHeaderHtml(label, pct, dollars) {
+    return `<tr style="background:#f0ede8;font-weight:700;">
+      <td style="padding:4px 6px;">${label}</td>
+      <td></td>
+      <td style="padding:4px 6px;text-align:right;">${pct.toFixed(1)}%</td>
+      <td style="padding:4px 6px;text-align:right;">${fmtC(dollars) || '$0'}</td>
+    </tr>`;
+  }
+
+  let body = '';
+  let grandPct = 0, grandDollars = 0;
+
+  PROPOSAL_SECTIONS.forEach(section => {
+    const secRows = rows.filter(t => t.section === section);
+    if (!secRows.length) return;
+    const secPct = secRows.reduce((s, t) => s + (t.pct || 0), 0);
+    const secDollars = secPct / 100 * portfolioValue;
+    grandPct += secPct; grandDollars += secDollars;
+    body += sectionHeaderHtml(section, secPct, secDollars);
+
+    if (section === 'Equity') {
+      const regions = [...PROPOSAL_REGIONS, ''];
+      regions.forEach(region => {
+        const regRows = secRows.filter(t => (t.region || '') === region);
+        if (!regRows.length) return;
+        body += `<tr><td colspan="4" style="padding:3px 6px 1px;font-size:0.72rem;font-weight:600;color:#6b7280;">${region || 'Other'}:</td></tr>`;
+        regRows.forEach(t => body += rowHtml(t, 20));
+      });
+    } else {
+      secRows.forEach(t => body += rowHtml(t, 10));
+    }
+  });
+
+  const win = window.open('', '_blank', 'width=800,height=900');
+  win.document.write(`<!DOCTYPE html><html><head><title>Portfolio Proposal — ${escHtml(client)}</title>
+    <style>
+      body { font-family: 'Segoe UI', sans-serif; margin: 0; color: #0f1f3d; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+      thead th { text-align: left; padding: 4px 6px; font-size: 0.72rem; color: #6b7280; border-bottom: 1px solid #0f1f3d; }
+      @media print { body { margin: 0; } }
+    </style></head><body>
+    <div style="padding:1.2rem 2rem;background:#ffffff;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f1f3d;">
+      <div style="flex-shrink:0;">
+        <img src="/logo.png" alt="JRL Private Wealth" style="height:48px;width:auto;display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+        <div style="display:none;font-family:'DM Serif Display',serif;color:#0f1f3d;font-size:1.4rem;line-height:1;">JRL<br><span style="font-size:0.55rem;letter-spacing:0.18em;text-transform:uppercase;color:#6b7280;">Private Wealth</span></div>
+      </div>
+      <div style="flex:1;padding:0 2.5rem;">
+        <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:#0f1f3d;line-height:1.2;">${escHtml(client)} — Portfolio Proposal</div>
+        <div style="font-size:0.75rem;color:#6b7280;margin-top:4px;">${escHtml(date)}${portfolioValue ? ' &nbsp;|&nbsp; Portfolio Value: ' + fmtC(portfolioValue) : ''}</div>
+      </div>
+      <div style="text-align:right;font-size:0.72rem;color:#6b7280;line-height:1.9;flex-shrink:0;">
+        <div style="color:#0f1f3d;font-weight:600;font-size:0.8rem;">Ryan Jarrell | Wealth Advisor</div>
+        T. 289 983 8547 &nbsp;|&nbsp; E. ryan@jrlprivatewealth.com<br>
+        W. jrlprivatewealth.com
+      </div>
+    </div>
+    <div style="padding:1.5rem 2rem;">
+      <table>
+        <thead><tr><th>Investment Description</th><th>Symbol</th><th style="text-align:right;">Allocation</th><th style="text-align:right;">Dollar Value</th></tr></thead>
+        <tbody>
+          ${body}
+          <tr style="font-weight:700;border-top:2px solid #0f1f3d;">
+            <td style="padding:5px 6px;" colspan="2">Total</td>
+            <td style="padding:5px 6px;text-align:right;">${grandPct.toFixed(1)}%</td>
+            <td style="padding:5px 6px;text-align:right;">${fmtC(grandDollars) || '$0'}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:1.5rem;font-size:0.65rem;color:#6b7280;line-height:1.5;">
+        This report is prepared from information received from sources we believe to be reliable. It is not an official statement of your positions. Please note some holdings shown in this statement may not be covered by CIPF.
+        Please consult your ACPI statements and/or your Advisor to determine which positions are eligible for Canadian Investor Protection Fund coverage (www.cipf.ca), including information as to which positions are held in segregation.
+        Please report any discrepancies between the transactions or positions reported on your ACPI statements and those shown here to the ACPI Business Integrity department at 905-639-5115.
+        Aligned Capital Partners Inc. is regulated by the Investment Industry Regulatory Organization of Canada (IIROC) and Member of the Canadian Investor Protection Fund (CIPF).
+      </div>
+    </div>
     <script>window.onload=()=>window.print()<\/script>
   </body></html>`);
   win.document.close();
@@ -2733,13 +3052,14 @@ function fmtC(n) {
 function switchTab(idx) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
   document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
-  if (idx === 3) renderFinal();
-  if (idx === 4) renderAdvisor();
+  if (idx === 0) renderProposal();
+  if (idx === 4) renderFinal();
+  if (idx === 5) renderAdvisor();
 }
 
 // ── DOWNLOAD PDF ──
 async function downloadPDF() {
-  switchTab(3);
+  switchTab(4);
   renderFinal();
   await new Promise(r => setTimeout(r, 900));
   const btn = document.getElementById('btn-print');
@@ -2949,6 +3269,7 @@ async function loadClient(id) {
     state.rebalanceNotes = d.rebalanceNotes || '';
     state.rebalanceRowNotes = d.rebalanceRowNotes || {};
     state.rawImport = d.rawImport || null;
+    state.proposal = d.proposal || { portfolioValue: 0, targets: [] };
     const rebalNotesEl = document.getElementById('rebal-notes');
     if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
 
@@ -2989,6 +3310,7 @@ async function saveClient() {
       rebalanceNotes:    state.rebalanceNotes,
       rebalanceRowNotes: state.rebalanceRowNotes,
       rawImport:         state.rawImport,
+      proposal:          state.proposal,
     }
   };
 
@@ -3119,6 +3441,9 @@ const ASSET_CLASS_OPTIONS = [
   'Alternative / Market Neutral', 'Alternative / Commodities',
 ];
 
+const PROPOSAL_SECTIONS = ['Liquidity Sleeve', 'Fixed Income', 'Equity', 'Alternative'];
+const PROPOSAL_REGIONS  = ['Canada', 'US', 'International', 'Private Investments'];
+
 function renderProductMap() {
   const tbody = document.getElementById('product-map-tbody');
   if (!tbody) return;
@@ -3170,6 +3495,19 @@ function renderHoldingsLibrary() {
           ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${r.assetClass===o?' selected':''}>${o}</option>`).join('')}
         </select>
       </td>
+      <td>
+        <select onchange="state.settings.holdingsLibrary[${i}].proposalSection=this.value;saveSettings();renderHoldingsLibrary();">
+          <option value="">— Select —</option>
+          ${PROPOSAL_SECTIONS.map(o => `<option value="${o}"${r.proposalSection===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        ${r.proposalSection === 'Equity' ? `
+        <select onchange="state.settings.holdingsLibrary[${i}].proposalRegion=this.value;saveSettings();">
+          <option value="">— Select —</option>
+          ${PROPOSAL_REGIONS.map(o => `<option value="${o}"${r.proposalRegion===o?' selected':''}>${o}</option>`).join('')}
+        </select>` : `<span style="color:var(--muted);font-size:0.75rem;">—</span>`}
+      </td>
       <td><button class="settings-del-btn" onclick="removeLibraryRow(${i})">&#x2715;</button></td>
     </tr>`).join('');
   const empty = document.getElementById('holdings-library-empty');
@@ -3189,7 +3527,9 @@ function addHoldingsToLibrary() {
     state.settings.holdingsLibrary.push({
       desc: h.desc,
       symbol: h.symbol || '',
-      assetClass: h.assetClass || ''
+      assetClass: h.assetClass || '',
+      proposalSection: '',
+      proposalRegion: ''
     });
     existing.add(h.desc.toLowerCase());
     added++;
@@ -3204,7 +3544,7 @@ function addHoldingsToLibrary() {
 
 function addLibraryRow() {
   if (!state.settings.holdingsLibrary) state.settings.holdingsLibrary = [];
-  state.settings.holdingsLibrary.push({ desc: '', symbol: '', assetClass: '' });
+  state.settings.holdingsLibrary.push({ desc: '', symbol: '', assetClass: '', proposalSection: '', proposalRegion: '' });
   saveSettings();
   renderHoldingsLibrary();
   setTimeout(() => {
