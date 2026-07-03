@@ -716,7 +716,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 <div class="main-layout">
   <div class="sidebar">
     <div class="sidebar-top">
-      <button class="btn-new" onclick="newReview()">+ New Review</button>
+      <button class="btn-new" onclick="newClient()">+ New Client</button>
       <input class="sidebar-search" placeholder="Search clients…" oninput="debounceSearch(this.value)">
     </div>
     <div class="client-list" id="client-list">
@@ -725,46 +725,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   </div>
   <div class="main-content">
 
-<!-- UPLOAD SCREEN -->
-<div id="upload-screen">
-  <h1 class="upload-headline">Build a client review</h1>
-  <p class="upload-sub">Upload two documents — the app does the rest.</p>
-
-  <div class="upload-grid">
-    <div class="drop-zone" id="dz-holdings" ondragover="dzOver(event,'dz-holdings')" ondragleave="dzLeave('dz-holdings')" ondrop="dzDrop(event,'holdings')">
-      <input type="file" accept=".xlsx,.xls" onchange="fileSelected(this,'holdings')">
-      <div class="drop-icon" id="icon-holdings">📊</div>
-      <div class="drop-label">Holdings file</div>
-      <div class="drop-hint">e.g. ClientName_Holdings.xlsx</div>
-      <div class="drop-filename" id="fname-holdings"></div>
-    </div>
-    <div class="drop-zone" id="dz-returns" ondragover="dzOver(event,'dz-returns')" ondragleave="dzLeave('dz-returns')" ondrop="dzDrop(event,'returns')">
-      <input type="file" accept=".pdf,.xlsx,.xls" onchange="fileSelected(this,'returns')">
-      <div class="drop-icon" id="icon-returns">📄</div>
-      <div class="drop-label">Monthly returns</div>
-      <div class="drop-hint">Rate of Return PDF or Excel</div>
-      <div class="drop-filename" id="fname-returns"></div>
-    </div>
-  </div>
-
-  <button class="btn-build" id="btn-build" onclick="buildReport()" disabled>
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-    Build Report
-  </button>
-  <div style="margin-top:0.85rem;text-align:center;">
-    <a href="#" onclick="startBlankClient();return false;" style="font-size:0.8rem;color:var(--muted);text-decoration:underline;">Skip — start with a blank client (new prospect, nothing to import yet)</a>
-  </div>
-</div>
-
-<!-- PROGRESS SCREEN -->
-<div id="progress-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 60px);gap:1.5rem;">
-  <div class="progress-title">Parsing documents…</div>
-  <div class="progress-bar-wrap"><div class="progress-bar" id="pbar"></div></div>
-  <div class="progress-step" id="pstep">Reading files…</div>
-</div>
-
 <!-- APP SCREEN -->
-<div id="app-screen" style="display:none;">
+<div id="app-screen" style="display:block;">
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab(0)" id="tbtn-0"><span class="tab-dot"></span> Proposal</button>
     <button class="tab-btn" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Net Worth</button>
@@ -847,6 +809,35 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 
   <!-- TAB 2: HOLDINGS -->
   <div class="tab-content" id="tab-2">
+    <div class="card">
+      <div class="card-head">
+        <h3>Import Client Statements</h3>
+        <span class="badge">Optional — for an ongoing review</span>
+      </div>
+      <div class="card-body">
+        <div class="upload-grid" style="max-width:600px;">
+          <div class="drop-zone" id="dz-holdings" ondragover="dzOver(event,'dz-holdings')" ondragleave="dzLeave('dz-holdings')" ondrop="dzDrop(event,'holdings')">
+            <input type="file" accept=".xlsx,.xls" onchange="fileSelected(this,'holdings')">
+            <div class="drop-icon" id="icon-holdings">📊</div>
+            <div class="drop-label">Holdings file</div>
+            <div class="drop-hint">e.g. ClientName_Holdings.xlsx</div>
+            <div class="drop-filename" id="fname-holdings"></div>
+          </div>
+          <div class="drop-zone" id="dz-returns" ondragover="dzOver(event,'dz-returns')" ondragleave="dzLeave('dz-returns')" ondrop="dzDrop(event,'returns')">
+            <input type="file" accept=".pdf,.xlsx,.xls" onchange="fileSelected(this,'returns')">
+            <div class="drop-icon" id="icon-returns">📄</div>
+            <div class="drop-label">Monthly returns</div>
+            <div class="drop-hint">Rate of Return PDF or Excel</div>
+            <div class="drop-filename" id="fname-returns"></div>
+          </div>
+        </div>
+        <button class="btn-build" id="btn-build" onclick="importStatements()" disabled style="margin-top:1rem;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Import
+        </button>
+        <div id="import-status" style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted);"></div>
+      </div>
+    </div>
     <div class="stats-row" id="holdings-stats"></div>
     <div class="card">
       <div class="card-head">
@@ -1102,6 +1093,27 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   </div>
 </div>
 
+<!-- NEW CLIENT MODAL -->
+<div id="new-client-modal" style="display:none;position:fixed;inset:0;background:rgba(15,31,61,0.45);z-index:10001;align-items:center;justify-content:center;" onclick="if(event.target===this)closeNewClientModal()">
+  <div style="width:420px;max-width:calc(100vw - 48px);background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(15,31,61,0.25);overflow:hidden;">
+    <div style="background:var(--navy);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <h4 style="color:#fff;margin:0;font-size:0.92rem;font-weight:600;">New Client</h4>
+      <button onclick="closeNewClientModal()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.1rem;cursor:pointer;padding:2px 6px;line-height:1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">&times;</button>
+    </div>
+    <div style="padding:24px;">
+      <div class="field-row" style="margin-bottom:16px;">
+        <div class="field-label">Client name</div>
+        <input type="text" class="nw-input" id="new-client-name" placeholder="e.g. Carrie and Kevin Craig" style="width:100%;text-align:left;" onkeydown="if(event.key==='Enter')submitNewClient();">
+      </div>
+      <div class="field-row">
+        <div class="field-label">Portfolio value</div>
+        <input type="number" step="1" class="nw-input" id="new-client-value" placeholder="e.g. 325000" style="width:100%;text-align:left;" onkeydown="if(event.key==='Enter')submitNewClient();">
+      </div>
+      <button onclick="submitNewClient()" style="margin-top:20px;width:100%;background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:10px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;">Start Proposal</button>
+    </div>
+  </div>
+</div>
+
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -1163,55 +1175,60 @@ async function handleFile(file, type) {
 }
 
 function checkReady() {
-  const ready = state.files.holdings && state.files.returns;
+  const ready = !!(state.files.holdings || state.files.returns);
   document.getElementById('btn-build').disabled = !ready;
 }
 
-// ── PROGRESS ──
-function setProgress(pct, msg) {
-  document.getElementById('pbar').style.width = pct + '%';
-  document.getElementById('pstep').textContent = msg;
-}
-
-// ── BUILD ──
-async function buildReport() {
-  document.getElementById('upload-screen').style.display = 'none';
-  const ps = document.getElementById('progress-screen');
-  ps.style.display = 'flex';
+// ── IMPORT STATEMENTS (from the Holdings tab, for an existing client's data) ──
+async function importStatements() {
+  const btn = document.getElementById('btn-build');
+  const statusEl = document.getElementById('import-status');
+  btn.disabled = true;
+  if (statusEl) statusEl.textContent = 'Importing…';
 
   try {
-    setProgress(10, 'Reading holdings file…');
-    await parseHoldings(state.files.holdings);
-    setProgress(50, 'Reading returns file…');
-    await parseReturns(state.files.returns);
-    setProgress(85, 'Building report…');
+    if (state.files.holdings) await parseHoldings(state.files.holdings);
+    if (state.files.returns)  await parseReturns(state.files.returns);
     renderAll();
-    setProgress(100, 'Done!');
-    await sleep(400);
-    ps.style.display = 'none';
-    document.getElementById('app-screen').style.display = 'block';
-    state.currentClientId = null;
-    document.getElementById('topbar-client').textContent = '';
-    document.getElementById('btn-topbar-save').style.display = 'block';
+    if (statusEl) statusEl.textContent = 'Imported ✓';
     runImportReview();
   } catch(err) {
-    setProgress(0, '⚠ Error: ' + err.message);
+    if (statusEl) statusEl.textContent = '⚠ Error: ' + err.message;
     console.error(err);
+  } finally {
+    btn.disabled = false;
   }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── BLANK START (new prospect, nothing to import) ──
-function startBlankClient() {
+// ── NEW CLIENT ──
+function newClient() {
+  resetClientState();
+  document.getElementById('new-client-name').value = '';
+  document.getElementById('new-client-value').value = '';
+  document.getElementById('new-client-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('new-client-name').focus(), 30);
+}
+
+function closeNewClientModal() {
+  document.getElementById('new-client-modal').style.display = 'none';
+}
+
+function submitNewClient() {
+  const name  = document.getElementById('new-client-name').value.trim();
+  const value = +document.getElementById('new-client-value').value || 0;
+  if (!name) { document.getElementById('new-client-name').focus(); return; }
+
   state.holdings = [];
   state.returns = [];
   state.currentClientId = null;
-  document.getElementById('upload-screen').style.display = 'none';
-  document.getElementById('progress-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'block';
-  document.getElementById('topbar-client').textContent = '';
+  state.proposal = { portfolioValue: value, targets: [] };
+
+  document.getElementById('f-client').value = name;
+  document.getElementById('topbar-client').textContent = name;
   document.getElementById('btn-topbar-save').style.display = 'block';
+  closeNewClientModal();
   renderAll();
   switchTab(0);
 }
@@ -3273,8 +3290,6 @@ async function loadClient(id) {
     const rebalNotesEl = document.getElementById('rebal-notes');
     if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
 
-    document.getElementById('upload-screen').style.display    = 'none';
-    document.getElementById('progress-screen').style.display  = 'none';
     document.getElementById('app-screen').style.display       = 'block';
     document.getElementById('topbar-client').textContent      = client.name;
     document.getElementById('btn-topbar-save').style.display  = 'block';
@@ -3343,18 +3358,21 @@ async function deleteClient(id, e) {
   }
 }
 
-function newReview() {
+function resetClientState() {
   state.currentClientId = null;
-  state.holdings = null;
-  state.returns  = null;
+  state.holdings = [];
+  state.returns  = [];
   state.files    = { holdings: null, returns: null };
+  state.proposal = { portfolioValue: 0, targets: [] };
 
-  ['dz-holdings','dz-returns'].forEach(id => document.getElementById(id).classList.remove('done'));
-  document.getElementById('fname-holdings').textContent = '';
-  document.getElementById('fname-returns').textContent  = '';
-  document.getElementById('icon-holdings').textContent  = '📊';
-  document.getElementById('icon-returns').textContent   = '📄';
-  document.getElementById('btn-build').disabled         = true;
+  ['dz-holdings','dz-returns'].forEach(id => document.getElementById(id)?.classList.remove('done'));
+  const fnameH = document.getElementById('fname-holdings'); if (fnameH) fnameH.textContent = '';
+  const fnameR = document.getElementById('fname-returns');  if (fnameR) fnameR.textContent = '';
+  const iconH  = document.getElementById('icon-holdings');  if (iconH) iconH.textContent = '📊';
+  const iconR  = document.getElementById('icon-returns');   if (iconR) iconR.textContent = '📄';
+  const btnBuild = document.getElementById('btn-build');    if (btnBuild) btnBuild.disabled = true;
+  const importStatus = document.getElementById('import-status'); if (importStatus) importStatus.textContent = '';
+  document.getElementById('f-client').value = '';
   document.getElementById('topbar-client').textContent  = '';
   document.getElementById('btn-topbar-save').style.display = 'none';
 
@@ -3376,11 +3394,10 @@ function newReview() {
   if (si)   si.checked = true;
 
   document.querySelector('.main-layout').style.display     = 'flex';
-  document.getElementById('upload-screen').style.display   = 'flex';
-  document.getElementById('progress-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display      = 'none';
+  document.getElementById('app-screen').style.display      = 'block';
   document.getElementById('settings-screen').style.display = 'none';
 
+  renderAll();
   loadClientList();
 }
 
