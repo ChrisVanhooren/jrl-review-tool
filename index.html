@@ -750,6 +750,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Add Position
           </button>
+          <button class="rebal-ghost-btn" onclick="loadProposalTemplate()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Load Default Template</button>
           <button class="rebal-ghost-btn" onclick="printProposal()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Generate Proposal</button>
           <span class="badge">Client-Facing</span>
         </div>
@@ -1054,6 +1055,24 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       </div>
     </div>
 
+    <!-- Default Proposal Template card -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-head">
+        <div>
+          <h3>Default Proposal Template</h3>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Standard starting rows (e.g. Cash) that pre-fill every new client's Proposal tab</div>
+        </div>
+        <button class="rebal-ghost-btn" onclick="addProposalTemplateRow()" style="border-color:rgba(255,255,255,0.4);color:#fff;white-space:nowrap;">+ Add Row</button>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table class="settings-table" style="width:100%;">
+          <thead><tr><th style="width:26%;">Investment Description</th><th style="width:10%;">Symbol</th><th style="width:18%;">Section</th><th style="width:16%;">Region</th><th style="width:14%;">Target %</th><th style="width:8%;"></th></tr></thead>
+          <tbody id="proposal-template-tbody"></tbody>
+        </table>
+        <div id="proposal-template-empty" style="display:none;text-align:center;padding:32px 0;color:var(--muted);font-size:0.85rem;">No template rows yet — click <strong>+ Add Row</strong> to get started.</div>
+      </div>
+    </div>
+
     <!-- Product Map card -->
     <div class="card">
       <div class="card-head">
@@ -1143,7 +1162,7 @@ const state = {
   rebalanceNotes: '',
   rebalanceRowNotes: {},
   rawImport: null,
-  settings: { productMap: [], holdingsLibrary: [] },
+  settings: { productMap: [], holdingsLibrary: [], proposalTemplate: [] },
   proposal: { portfolioValue: 0, targets: [] },
 };
 
@@ -1223,7 +1242,8 @@ function submitNewClient() {
   state.holdings = [];
   state.returns = [];
   state.currentClientId = null;
-  state.proposal = { portfolioValue: value, targets: [] };
+  const templateTargets = (state.settings.proposalTemplate || []).map(r => ({ ...r }));
+  state.proposal = { portfolioValue: value, targets: templateTargets };
 
   document.getElementById('f-client').value = name;
   document.getElementById('topbar-client').textContent = name;
@@ -2079,6 +2099,14 @@ function addProposalRow() {
 
 function removeProposalRow(i) {
   state.proposal.targets.splice(i, 1);
+  renderProposal();
+}
+
+function loadProposalTemplate() {
+  const template = state.settings.proposalTemplate || [];
+  if (!template.length) { showToast('No default template set up — add rows in Settings first.'); return; }
+  if ((state.proposal.targets || []).length && !confirm('Replace the current proposal rows with the default template?')) return;
+  state.proposal.targets = template.map(r => ({ ...r }));
   renderProposal();
 }
 
@@ -3576,6 +3604,52 @@ function removeLibraryRow(i) {
   renderHoldingsLibrary();
 }
 
+function renderProposalTemplate() {
+  const tbody = document.getElementById('proposal-template-tbody');
+  if (!tbody) return;
+  if (!state.settings.proposalTemplate) state.settings.proposalTemplate = [];
+  const rows = state.settings.proposalTemplate;
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input type="text" value="${escHtml(r.desc||'')}" oninput="state.settings.proposalTemplate[${i}].desc=this.value;saveSettings();" placeholder="e.g. Cash"></td>
+      <td><input type="text" value="${escHtml(r.symbol||'')}" oninput="state.settings.proposalTemplate[${i}].symbol=this.value;saveSettings();" placeholder="e.g. FID123"></td>
+      <td>
+        <select onchange="state.settings.proposalTemplate[${i}].section=this.value;if(this.value!=='Equity')state.settings.proposalTemplate[${i}].region='';saveSettings();renderProposalTemplate();">
+          <option value="">— Select —</option>
+          ${PROPOSAL_SECTIONS.map(o => `<option value="${o}"${r.section===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        ${r.section === 'Equity' ? `
+        <select onchange="state.settings.proposalTemplate[${i}].region=this.value;saveSettings();">
+          <option value="">— Select —</option>
+          ${PROPOSAL_REGIONS.map(o => `<option value="${o}"${r.region===o?' selected':''}>${o}</option>`).join('')}
+        </select>` : `<span style="color:var(--muted);font-size:0.75rem;">—</span>`}
+      </td>
+      <td><input type="number" step="0.1" min="0" max="100" value="${r.pct||0}" oninput="state.settings.proposalTemplate[${i}].pct=+this.value||0;saveSettings();" style="width:70px;"></td>
+      <td><button class="settings-del-btn" onclick="removeProposalTemplateRow(${i})">&#x2715;</button></td>
+    </tr>`).join('');
+  const empty = document.getElementById('proposal-template-empty');
+  if (empty) empty.style.display = rows.length ? 'none' : 'block';
+}
+
+function addProposalTemplateRow() {
+  if (!state.settings.proposalTemplate) state.settings.proposalTemplate = [];
+  state.settings.proposalTemplate.push({ desc: '', symbol: '', section: '', region: '', pct: 0 });
+  saveSettings();
+  renderProposalTemplate();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#proposal-template-tbody input[type="text"]');
+    if (inputs.length) inputs[inputs.length - 2].focus();
+  }, 30);
+}
+
+function removeProposalTemplateRow(i) {
+  state.settings.proposalTemplate.splice(i, 1);
+  saveSettings();
+  renderProposalTemplate();
+}
+
 let _settingsPrevScreen = null;
 
 function showSettings() {
@@ -3584,6 +3658,7 @@ function showSettings() {
   document.getElementById('settings-screen').style.display = 'block';
   renderProductMap();
   renderHoldingsLibrary();
+  renderProposalTemplate();
 }
 
 function closeSettings() {
@@ -3597,6 +3672,7 @@ function toggleSettings() { showSettings(); }
 loadSettings().then(() => {
   renderProductMap();
   renderHoldingsLibrary();
+  renderProposalTemplate();
 });
 
 // Load client list on startup
