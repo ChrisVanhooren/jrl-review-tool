@@ -797,7 +797,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Add Row
           </button>
-          <button class="rebal-ghost-btn" onclick="syncImplementationFromTargets()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Sync from Trade List</button>
+          <button class="rebal-ghost-btn" onclick="syncImplementationFromTargets()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Sync from Proposal</button>
           <span class="badge">Internal Use Only</span>
         </div>
       </div>
@@ -2580,32 +2580,19 @@ function toggleImplGroup(group) {
 }
 
 function syncImplementationFromTargets() {
-  const h = state.holdings || [];
-  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
-  const THRESHOLD = 0.05;
+  const targets = (state.proposal && state.proposal.targets) || [];
+  const portfolioValue = (state.proposal && state.proposal.portfolioValue) || 0;
 
   const computed = [];
 
-  h.forEach(row => {
-    const key = row.desc + '|' + row.symbol;
-    const currentPct = row.mv / totalMV * 100;
-    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
-    const diff = targetPct - currentPct;
-    if (Math.abs(diff) < THRESHOLD) return;
+  targets.forEach(t => {
+    if (!t.desc || !(t.pct > 0)) return;
+    const key = t.desc + '|' + (t.symbol || '');
     computed.push({
-      key, desc: row.desc, symbol: row.symbol,
-      assetClass: row.assetClass || row.cat || '',
-      type: diff < 0 ? 'Sell' : 'Buy',
-      targetDollars: Math.abs(diff / 100 * totalMV),
-    });
-  });
-
-  (state.rebalanceNew || []).forEach(pos => {
-    if (!pos.desc || pos.targetPct <= 0) return;
-    computed.push({
-      key: 'NEW:' + pos.desc, desc: pos.desc, symbol: '',
-      assetClass: pos.assetClass || '', type: 'Buy',
-      targetDollars: pos.targetPct / 100 * totalMV,
+      key, desc: t.desc, symbol: t.symbol || '',
+      assetClass: t.section || '',
+      type: 'Buy',
+      targetDollars: (t.pct / 100) * portfolioValue,
     });
   });
 
@@ -2629,7 +2616,7 @@ function syncImplementationFromTargets() {
 
   state.implementation = merged;
   renderImplementation();
-  showToast('Synced from current targets');
+  showToast('Synced from Proposal');
 }
 
 function addImplementationRow() {
@@ -2737,7 +2724,7 @@ function renderImplementation() {
   tbody.innerHTML = '';
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem;">No trades tracked yet — click "Sync from Trade List" to pull in current rebalance targets, or "Add Row" for a one-off entry.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem;">No trades tracked yet — click "Sync from Proposal" to pull in the signed-off target allocation, or "Add Row" for a one-off entry.</td></tr>';
     document.getElementById('impl-stats').innerHTML = '';
     return;
   }
