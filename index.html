@@ -239,6 +239,13 @@ td.r { text-align: right; font-variant-numeric: tabular-nums; }
 .neg { color: var(--danger); }
 .tfoot-row td { font-weight: 600; border-top: 1.5px solid var(--border); border-bottom: none; background: #f8f5f0; }
 
+/* ── PROPOSAL SECTION GROUPS ── */
+.proposal-section-row td { background: var(--navy); color: #fff; font-weight: 600; padding: 8px 10px; cursor: pointer; user-select: none; border-bottom: none; }
+.proposal-section-row:hover td { background: var(--navy-mid); }
+.proposal-section-row .chevron { display: inline-block; margin-right: 7px; transition: transform 0.15s ease; font-size: 0.7rem; }
+.proposal-section-row.collapsed .chevron { transform: rotate(-90deg); }
+.proposal-section-row td.r { color: var(--gold-light); }
+
 /* ── NW INPUTS ── */
 .nw-grid {
   display: grid;
@@ -734,6 +741,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     <button class="tab-btn filled" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Monthly Returns</button>
     <button class="tab-btn" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Final</button>
     <button class="tab-btn" onclick="switchTab(5)" id="tbtn-5"><span class="tab-dot"></span> Advisor Tool</button>
+    <button class="tab-btn" onclick="switchTab(6)" id="tbtn-6"><span class="tab-dot"></span> Implementation</button>
     <button class="tab-gear-btn" onclick="toggleSettings()" title="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
     </button>
@@ -1007,6 +1015,40 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
+  <!-- TAB 6: IMPLEMENTATION -->
+  <div class="tab-content" id="tab-6">
+    <div class="stats-row" id="impl-stats"></div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Trade Implementation Tracking</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="addImplementationRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Row
+          </button>
+          <button class="rebal-ghost-btn" onclick="syncImplementationFromTargets()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Sync from Trade List</button>
+          <span class="badge">Internal Use Only</span>
+        </div>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table id="impl-table">
+          <thead><tr>
+            <th>Description</th>
+            <th>Symbol</th>
+            <th>Asset Class</th>
+            <th class="r">Target $</th>
+            <th class="r">Deployed $</th>
+            <th class="r">Remaining $</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="impl-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- EXPORT BAR -->
   <div class="export-bar">
     <button class="btn-export" onclick="exportExcel()">
@@ -1164,6 +1206,7 @@ const state = {
   rawImport: null,
   settings: { productMap: [], holdingsLibrary: [], proposalTemplate: [] },
   proposal: { portfolioValue: 0, targets: [] },
+  implementation: [],
 };
 
 // ── DRAG / DROP ──
@@ -2013,6 +2056,13 @@ function renderAdvisor() {
 }
 
 // ── PROPOSAL ──
+let proposalCollapsedSections = {};
+
+function toggleProposalSection(section) {
+  proposalCollapsedSections[section] = !proposalCollapsedSections[section];
+  renderProposal();
+}
+
 function renderProposal() {
   const tbody = document.getElementById('proposal-tbody');
   if (!tbody) return;
@@ -2024,9 +2074,8 @@ function renderProposal() {
   const portfolioValue = state.proposal.portfolioValue || 0;
 
   tbody.innerHTML = '';
-  let totalPct = 0;
-  targets.forEach((t, i) => {
-    totalPct += t.pct || 0;
+
+  const renderRow = (t, i) => {
     const dollars = (t.pct || 0) / 100 * portfolioValue;
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -2064,6 +2113,36 @@ function renderProposal() {
       <td><button onclick="removeProposalRow(${i})" class="rebal-del" title="Remove">×</button></td>
     `;
     tbody.appendChild(tr);
+  };
+
+  const groups = {};
+  PROPOSAL_SECTIONS.forEach(s => groups[s] = []);
+  groups['__none__'] = [];
+  targets.forEach((t, i) => {
+    const key = t.section && PROPOSAL_SECTIONS.includes(t.section) ? t.section : '__none__';
+    groups[key].push(i);
+  });
+
+  let totalPct = 0;
+  [...PROPOSAL_SECTIONS, '__none__'].forEach(section => {
+    const idxs = groups[section];
+    if (!idxs.length) return;
+    const sectionPct = idxs.reduce((sum, i) => sum + (targets[i].pct || 0), 0);
+    const sectionDollars = sectionPct / 100 * portfolioValue;
+    totalPct += sectionPct;
+
+    const collapsed = !!proposalCollapsedSections[section];
+    const headerTr = document.createElement('tr');
+    headerTr.className = 'proposal-section-row' + (collapsed ? ' collapsed' : '');
+    headerTr.innerHTML = `
+      <td colspan="4" onclick="toggleProposalSection('${section}')"><span class="chevron">▾</span>${section === '__none__' ? 'Unassigned' : section} <span style="opacity:0.6;font-weight:400;">(${idxs.length})</span></td>
+      <td class="r" onclick="toggleProposalSection('${section}')">${sectionPct.toFixed(2)}%</td>
+      <td class="r" onclick="toggleProposalSection('${section}')">${fmt$(sectionDollars)}</td>
+      <td onclick="toggleProposalSection('${section}')"></td>
+    `;
+    tbody.appendChild(headerTr);
+
+    if (!collapsed) idxs.forEach(i => renderRow(targets[i], i));
   });
 
   const tfr = document.createElement('tr');
@@ -2489,6 +2568,263 @@ function printTradeList() {
     <script>window.onload=()=>window.print()<\/script>
   </body></html>`);
   win.document.close();
+}
+
+// ── IMPLEMENTATION TRACKING ──
+let implCollapsedGroups = {};
+
+function toggleImplGroup(group) {
+  implCollapsedGroups[group] = !implCollapsedGroups[group];
+  renderImplementation();
+}
+
+function syncImplementationFromTargets() {
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  const THRESHOLD = 0.05;
+
+  const computed = [];
+
+  h.forEach(row => {
+    const key = row.desc + '|' + row.symbol;
+    const currentPct = row.mv / totalMV * 100;
+    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+    const diff = targetPct - currentPct;
+    if (Math.abs(diff) < THRESHOLD) return;
+    computed.push({
+      key, desc: row.desc, symbol: row.symbol,
+      assetClass: row.assetClass || row.cat || '',
+      type: diff < 0 ? 'Sell' : 'Buy',
+      targetDollars: Math.abs(diff / 100 * totalMV),
+    });
+  });
+
+  (state.rebalanceNew || []).forEach(pos => {
+    if (!pos.desc || pos.targetPct <= 0) return;
+    computed.push({
+      key: 'NEW:' + pos.desc, desc: pos.desc, symbol: '',
+      assetClass: pos.assetClass || '', type: 'Buy',
+      targetDollars: pos.targetPct / 100 * totalMV,
+    });
+  });
+
+  if (!state.implementation) state.implementation = [];
+  const existingByKey = new Map(state.implementation.map(r => [r.key, r]));
+  const computedKeys = new Set(computed.map(c => c.key));
+
+  const merged = computed.map(c => {
+    const prev = existingByKey.get(c.key);
+    if (prev) {
+      return { ...prev, desc: c.desc, symbol: c.symbol, assetClass: c.assetClass, type: c.type, targetDollars: c.targetDollars };
+    }
+    return { key: c.key, desc: c.desc, symbol: c.symbol, assetClass: c.assetClass, type: c.type,
+             targetDollars: c.targetDollars, deployedDollars: 0, notes: '', manual: false };
+  });
+
+  // Carry forward rows no longer matched by a current target (manual rows always carry forward)
+  state.implementation.forEach(r => {
+    if (!computedKeys.has(r.key)) merged.push(r);
+  });
+
+  state.implementation = merged;
+  renderImplementation();
+  showToast('Synced from current targets');
+}
+
+function addImplementationRow() {
+  if (!state.implementation) state.implementation = [];
+  state.implementation.push({ key: 'MANUAL:' + Date.now(), desc: '', symbol: '', assetClass: '', type: 'Buy',
+    targetDollars: 0, deployedDollars: 0, notes: '', manual: true });
+  renderImplementation();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#impl-tbody .impl-desc-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 30);
+}
+
+function removeImplementationRow(i) {
+  state.implementation.splice(i, 1);
+  renderImplementation();
+}
+
+function handleImplDeployedInput(input) {
+  const i = +input.dataset.iidx;
+  state.implementation[i].deployedDollars = Math.max(0, +input.value || 0);
+  renderImplementation();
+}
+
+function handleImplTargetInput(input) {
+  const i = +input.dataset.iidx;
+  state.implementation[i].targetDollars = Math.max(0, +input.value || 0);
+  renderImplementation();
+}
+
+function handleImplDescInput(input, idx) {
+  state.implementation[idx].desc = input.value;
+  const q = input.value.trim().toLowerCase();
+  const list = document.getElementById('impl-ac-' + idx);
+  if (!list) return;
+  if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  const clientHoldings = (state.holdings || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass || getAssetClass(h.symbol, h.desc) }));
+  const library = (state.settings.holdingsLibrary || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass }));
+  const seen = new Set();
+  const pool = [...clientHoldings, ...library].filter(h => {
+    if (!h.desc || seen.has(h.desc.toLowerCase())) return false;
+    seen.add(h.desc.toLowerCase());
+    return true;
+  });
+  const matches = pool.filter(h => h.desc.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
+  list.innerHTML = matches.map(h =>
+    `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-symbol="${escHtml(h.symbol||'')}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
+      onmousedown="selectImplAutocomplete(event,${idx})">${escHtml(h.desc)}</div>`
+  ).join('');
+  list.classList.add('open');
+}
+
+function selectImplAutocomplete(event, idx) {
+  event.preventDefault();
+  applyImplAutocompleteItem(event.currentTarget, idx);
+  renderImplementation();
+}
+
+function applyImplAutocompleteItem(item, idx) {
+  state.implementation[idx].desc = item.dataset.desc;
+  if (item.dataset.symbol) state.implementation[idx].symbol = item.dataset.symbol;
+  if (item.dataset.ac) state.implementation[idx].assetClass = item.dataset.ac;
+}
+
+function closeImplAutocomplete(input) {
+  const wrap = input.closest('.rebal-autocomplete-wrap');
+  if (!wrap) return;
+  const list = wrap.querySelector('.rebal-autocomplete-list');
+  if (list) { list.classList.remove('open'); list.innerHTML = ''; }
+}
+
+function handleImplDescKey(event, input, idx) {
+  const list = document.getElementById('impl-ac-' + idx);
+  if (!list || !list.classList.contains('open')) return;
+  const items = list.querySelectorAll('.rebal-autocomplete-item');
+  const active = list.querySelector('.rebal-autocomplete-item.active');
+  let activeIdx = Array.from(items).indexOf(active);
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    if (active) active.classList.remove('active');
+    items[Math.min(activeIdx + 1, items.length - 1)].classList.add('active');
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (active) active.classList.remove('active');
+    items[Math.max(activeIdx - 1, 0)].classList.add('active');
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    const highlighted = list.querySelector('.rebal-autocomplete-item.active') || items[0];
+    if (highlighted) {
+      event.preventDefault();
+      applyImplAutocompleteItem(highlighted, idx);
+      renderImplementation();
+    }
+  } else if (event.key === 'Escape') {
+    list.classList.remove('open'); list.innerHTML = '';
+  }
+}
+
+function renderImplementation() {
+  const tbody = document.getElementById('impl-tbody');
+  if (!tbody) return;
+  if (!state.implementation) state.implementation = [];
+  const rows = state.implementation;
+
+  tbody.innerHTML = '';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem;">No trades tracked yet — click "Sync from Trade List" to pull in current rebalance targets, or "Add Row" for a one-off entry.</td></tr>';
+    document.getElementById('impl-stats').innerHTML = '';
+    return;
+  }
+
+  const statusOf = (r) => {
+    if ((r.deployedDollars || 0) <= 0) return { label: 'Not Started', color: 'var(--muted)' };
+    if ((r.deployedDollars || 0) >= (r.targetDollars || 0) && (r.targetDollars || 0) > 0) return { label: 'Complete', color: 'var(--success)' };
+    return { label: 'In Progress', color: 'var(--gold)' };
+  };
+
+  const renderRow = (r, i) => {
+    const target = r.targetDollars || 0;
+    const deployed = r.deployedDollars || 0;
+    const remaining = Math.max(0, target - deployed);
+    const status = statusOf(r);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding:5px 10px;">
+        ${r.manual ? `
+        <div class="rebal-autocomplete-wrap">
+          <input type="text" class="rebal-new-input impl-desc-input" placeholder="Fund name…" value="${escHtml(r.desc||'')}"
+            autocomplete="off"
+            oninput="handleImplDescInput(this,${i})"
+            onkeydown="handleImplDescKey(event,this,${i})"
+            onblur="setTimeout(()=>closeImplAutocomplete(this),150)">
+          <div class="rebal-autocomplete-list" id="impl-ac-${i}"></div>
+        </div>` : escHtml(r.desc || '')}
+      </td>
+      <td>${r.manual ? `<input type="text" class="rebal-new-input" value="${escHtml(r.symbol||'')}" oninput="state.implementation[${i}].symbol=this.value" style="width:90px;">` : escHtml(r.symbol || '—')}</td>
+      <td>${escHtml(r.assetClass || '—')}</td>
+      <td class="r" style="padding-top:4px;padding-bottom:4px;">
+        ${r.manual ? `
+        <select onchange="state.implementation[${i}].type=this.value;renderImplementation();" style="font-size:0.76rem;">
+          <option value="Buy"${r.type==='Buy'?' selected':''}>Buy</option>
+          <option value="Sell"${r.type==='Sell'?' selected':''}>Sell</option>
+        </select>
+        <input class="rebal-input" type="number" step="1" min="0" value="${target.toFixed(2)}" data-iidx="${i}" onchange="handleImplTargetInput(this)" style="margin-top:4px;">
+        ` : fmt$(target)}
+      </td>
+      <td class="r" style="padding-top:4px;padding-bottom:4px;">
+        <input class="rebal-input" type="number" step="1" min="0" value="${deployed.toFixed(2)}" data-iidx="${i}" onchange="handleImplDeployedInput(this)">
+      </td>
+      <td class="r">${fmt$(remaining)}</td>
+      <td><span style="font-size:0.72rem;font-weight:600;color:${status.color};">${status.label}</span></td>
+      <td><input class="rebal-new-input" type="text" placeholder="Notes…" value="${escHtml(r.notes||'')}" oninput="state.implementation[${i}].notes=this.value" style="width:200px;"></td>
+      <td><button onclick="removeImplementationRow(${i})" class="rebal-del" title="Remove">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  };
+
+  const groups = { Sell: [], Buy: [] };
+  rows.forEach((r, i) => { (groups[r.type] || groups.Buy).push(i); });
+
+  let totalTarget = 0, totalDeployed = 0;
+  ['Sell', 'Buy'].forEach(group => {
+    const idxs = groups[group];
+    if (!idxs.length) return;
+    const groupTarget = idxs.reduce((s, i) => s + (rows[i].targetDollars || 0), 0);
+    const groupDeployed = idxs.reduce((s, i) => s + (rows[i].deployedDollars || 0), 0);
+    totalTarget += groupTarget;
+    totalDeployed += groupDeployed;
+
+    const collapsed = !!implCollapsedGroups[group];
+    const headerTr = document.createElement('tr');
+    headerTr.className = 'proposal-section-row' + (collapsed ? ' collapsed' : '');
+    headerTr.innerHTML = `
+      <td colspan="4" onclick="toggleImplGroup('${group}')"><span class="chevron">▾</span>${group === 'Sell' ? 'Sells' : 'Buys'} <span style="opacity:0.6;font-weight:400;">(${idxs.length})</span></td>
+      <td class="r" onclick="toggleImplGroup('${group}')">${fmt$(groupDeployed)} / ${fmt$(groupTarget)}</td>
+      <td class="r" onclick="toggleImplGroup('${group}')">${fmt$(Math.max(0, groupTarget - groupDeployed))}</td>
+      <td onclick="toggleImplGroup('${group}')"></td>
+      <td onclick="toggleImplGroup('${group}')"></td>
+      <td onclick="toggleImplGroup('${group}')"></td>
+    `;
+    tbody.appendChild(headerTr);
+
+    if (!collapsed) idxs.forEach(i => renderRow(rows[i], i));
+  });
+
+  const totalRemaining = Math.max(0, totalTarget - totalDeployed);
+  const pctComplete = totalTarget ? Math.min(100, totalDeployed / totalTarget * 100) : 0;
+
+  const statsEl = document.getElementById('impl-stats');
+  if (statsEl) statsEl.innerHTML = `
+    <div class="stat-card"><div class="lbl">Total Target</div><div class="val">${fmt$(totalTarget)}</div></div>
+    <div class="stat-card"><div class="lbl">Total Deployed</div><div class="val">${fmt$(totalDeployed)}</div></div>
+    <div class="stat-card"><div class="lbl">Remaining</div><div class="val">${fmt$(totalRemaining)}</div></div>
+    <div class="stat-card"><div class="lbl">% Complete</div><div class="val">${pctComplete.toFixed(1)}%</div></div>
+  `;
 }
 
 // ── PROPOSAL PDF ──
@@ -3100,6 +3436,7 @@ function switchTab(idx) {
   if (idx === 0) renderProposal();
   if (idx === 4) renderFinal();
   if (idx === 5) renderAdvisor();
+  if (idx === 6) renderImplementation();
 }
 
 // ── DOWNLOAD PDF ──
@@ -3315,6 +3652,7 @@ async function loadClient(id) {
     state.rebalanceRowNotes = d.rebalanceRowNotes || {};
     state.rawImport = d.rawImport || null;
     state.proposal = d.proposal || { portfolioValue: 0, targets: [] };
+    state.implementation = d.implementation || [];
     const rebalNotesEl = document.getElementById('rebal-notes');
     if (rebalNotesEl) rebalNotesEl.value = state.rebalanceNotes;
 
@@ -3354,6 +3692,7 @@ async function saveClient() {
       rebalanceRowNotes: state.rebalanceRowNotes,
       rawImport:         state.rawImport,
       proposal:          state.proposal,
+      implementation:    state.implementation,
     }
   };
 
@@ -3392,6 +3731,7 @@ function resetClientState() {
   state.returns  = [];
   state.files    = { holdings: null, returns: null };
   state.proposal = { portfolioValue: 0, targets: [] };
+  state.implementation = [];
 
   ['dz-holdings','dz-returns'].forEach(id => document.getElementById(id)?.classList.remove('done'));
   const fnameH = document.getElementById('fname-holdings'); if (fnameH) fnameH.textContent = '';
