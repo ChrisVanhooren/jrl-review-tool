@@ -716,6 +716,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   <div class="logo">JRL Private Wealth <span>Client Review Builder</span></div>
   <div style="display:flex;align-items:center;gap:12px;">
     <span class="topbar-client-name" id="topbar-client"></span>
+    <span id="autosave-status" style="font-size:0.72rem;color:rgba(255,255,255,0.4);font-weight:300;"></span>
     <button class="btn-topbar-save" id="btn-topbar-save" onclick="saveClient()">Save</button>
   </div>
 </div>
@@ -736,12 +737,12 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 <div id="app-screen" style="display:block;">
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab(0)" id="tbtn-0"><span class="tab-dot"></span> Proposal</button>
-    <button class="tab-btn" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Net Worth</button>
-    <button class="tab-btn filled" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Holdings</button>
-    <button class="tab-btn filled" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Monthly Returns</button>
-    <button class="tab-btn" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Final</button>
-    <button class="tab-btn" onclick="switchTab(5)" id="tbtn-5"><span class="tab-dot"></span> Advisor Tool</button>
-    <button class="tab-btn" onclick="switchTab(6)" id="tbtn-6"><span class="tab-dot"></span> Implementation</button>
+    <button class="tab-btn" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Implementation</button>
+    <button class="tab-btn" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Net Worth</button>
+    <button class="tab-btn filled" onclick="switchTab(3)" id="tbtn-3"><span class="tab-dot"></span> Holdings</button>
+    <button class="tab-btn filled" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Monthly Returns</button>
+    <button class="tab-btn" onclick="switchTab(5)" id="tbtn-5"><span class="tab-dot"></span> Final</button>
+    <button class="tab-btn" onclick="switchTab(6)" id="tbtn-6"><span class="tab-dot"></span> Advisor Tool</button>
     <button class="tab-gear-btn" onclick="toggleSettings()" title="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
     </button>
@@ -785,8 +786,42 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 1: NET WORTH -->
+  <!-- TAB 1: IMPLEMENTATION -->
   <div class="tab-content" id="tab-1">
+    <div class="stats-row" id="impl-stats"></div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Trade Implementation Tracking</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="addImplementationRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Row
+          </button>
+          <button class="rebal-ghost-btn" onclick="syncImplementationFromTargets()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Sync from Trade List</button>
+          <span class="badge">Internal Use Only</span>
+        </div>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <table id="impl-table">
+          <thead><tr>
+            <th>Description</th>
+            <th>Symbol</th>
+            <th>Asset Class</th>
+            <th class="r">Target $</th>
+            <th class="r">Deployed $</th>
+            <th class="r">Remaining $</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="impl-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: NET WORTH -->
+  <div class="tab-content" id="tab-2">
     <div class="card">
       <div class="card-head"><h3>Client Names</h3><span class="badge">Editable</span></div>
       <div class="card-body">
@@ -816,8 +851,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 2: HOLDINGS -->
-  <div class="tab-content" id="tab-2">
+  <!-- TAB 3: HOLDINGS -->
+  <div class="tab-content" id="tab-3">
     <div class="card">
       <div class="card-head">
         <h3>Import Client Statements</h3>
@@ -874,8 +909,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 3: RETURNS -->
-  <div class="tab-content" id="tab-3">
+  <!-- TAB 4: RETURNS -->
+  <div class="tab-content" id="tab-4">
     <div class="stats-row" id="returns-stats"></div>
     <div class="card">
       <div class="card-head">
@@ -902,8 +937,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 4: FINAL -->
-  <div class="tab-content" id="tab-4">
+  <!-- TAB 5: FINAL -->
+  <div class="tab-content" id="tab-5">
     <div class="card" style="margin-bottom:1rem;">
       <div class="card-head"><h3>Report Details</h3></div>
       <div class="card-body">
@@ -949,8 +984,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
     </div>
   </div>
 
-  <!-- TAB 5: ADVISOR TOOL -->
-  <div class="tab-content" id="tab-5">
+  <!-- TAB 6: ADVISOR TOOL -->
+  <div class="tab-content" id="tab-6">
     <div class="stats-row" id="rebal-stats"></div>
     <div class="card">
       <div class="card-head">
@@ -1011,40 +1046,6 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <button class="ai-send-btn" id="ai-send-btn" onclick="sendAiMessage()">Send</button>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 6: IMPLEMENTATION -->
-  <div class="tab-content" id="tab-6">
-    <div class="stats-row" id="impl-stats"></div>
-    <div class="card">
-      <div class="card-head">
-        <h3>Trade Implementation Tracking</h3>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="addImplementationRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Add Row
-          </button>
-          <button class="rebal-ghost-btn" onclick="syncImplementationFromTargets()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Sync from Trade List</button>
-          <span class="badge">Internal Use Only</span>
-        </div>
-      </div>
-      <div class="card-body" style="overflow-x:auto;">
-        <table id="impl-table">
-          <thead><tr>
-            <th>Description</th>
-            <th>Symbol</th>
-            <th>Asset Class</th>
-            <th class="r">Target $</th>
-            <th class="r">Deployed $</th>
-            <th class="r">Remaining $</th>
-            <th>Status</th>
-            <th>Notes</th>
-            <th></th>
-          </tr></thead>
-          <tbody id="impl-tbody"></tbody>
-        </table>
       </div>
     </div>
   </div>
@@ -3434,14 +3435,15 @@ function switchTab(idx) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
   document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
   if (idx === 0) renderProposal();
-  if (idx === 4) renderFinal();
-  if (idx === 5) renderAdvisor();
-  if (idx === 6) renderImplementation();
+  if (idx === 1) renderImplementation();
+  if (idx === 5) renderFinal();
+  if (idx === 6) renderAdvisor();
+  scheduleAutoSave();
 }
 
 // ── DOWNLOAD PDF ──
 async function downloadPDF() {
-  switchTab(4);
+  switchTab(5);
   renderFinal();
   await new Promise(r => setTimeout(r, 900));
   const btn = document.getElementById('btn-print');
@@ -3629,6 +3631,7 @@ async function loadClient(id) {
     state.returns  = d.returns;
     state.nwAssets = d.nwAssets;
     state.nwLiab   = d.nwLiab;
+    setAutosaveStatus('');
 
     document.getElementById('name-a').value  = d.clientNameA || 'Client A';
     document.getElementById('name-b').value  = d.clientNameB || 'Client B';
@@ -3668,7 +3671,7 @@ async function loadClient(id) {
   }
 }
 
-async function saveClient() {
+async function saveClient(silent = false) {
   const name          = (document.getElementById('f-client').value || '').trim() || 'Unnamed Client';
   const reviewDate    = (document.getElementById('f-date').value   || '').trim();
   const accountNumber = (document.getElementById('f-acct').value   || '').trim();
@@ -3706,11 +3709,26 @@ async function saveClient() {
     document.getElementById('topbar-client').textContent = name;
     document.getElementById('btn-topbar-save').style.display = 'block';
     loadClientList();
-    showToast('Saved');
+    setAutosaveStatus('Saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+    if (!silent) showToast('Saved');
   } catch {
-    showToast('Save failed');
+    setAutosaveStatus('Save failed');
+    if (!silent) showToast('Save failed');
   }
 }
+
+function setAutosaveStatus(text) {
+  const el = document.getElementById('autosave-status');
+  if (el) el.textContent = text;
+}
+
+let autoSaveTimer = null;
+function scheduleAutoSave(delay = 2500) {
+  if (!state.currentClientId) return; // only autosave clients that already exist server-side
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => saveClient(true), delay);
+}
+setInterval(() => { if (state.currentClientId) saveClient(true); }, 60000);
 
 async function deleteClient(id, e) {
   e.stopPropagation();
@@ -3732,6 +3750,7 @@ function resetClientState() {
   state.files    = { holdings: null, returns: null };
   state.proposal = { portfolioValue: 0, targets: [] };
   state.implementation = [];
+  setAutosaveStatus('');
 
   ['dz-holdings','dz-returns'].forEach(id => document.getElementById(id)?.classList.remove('done'));
   const fnameH = document.getElementById('fname-holdings'); if (fnameH) fnameH.textContent = '';
