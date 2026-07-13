@@ -2485,8 +2485,9 @@ function handleRebalDescInput(input, idx) {
   if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
   const clientHoldings = (state.holdings || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass || getAssetClass(h.symbol, h.desc) }));
   const library = (state.settings.holdingsLibrary || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass }));
+  const template = (state.settings.proposalTemplate || []).map(r => ({ desc: r.desc, symbol: r.symbol, assetClass: [r.section, r.region].filter(Boolean).join(' - ') }));
   const seen = new Set();
-  const pool = [...clientHoldings, ...library].filter(h => {
+  const pool = [...clientHoldings, ...library, ...template].filter(h => {
     if (!h.desc || seen.has(h.desc.toLowerCase())) return false;
     seen.add(h.desc.toLowerCase());
     return true;
