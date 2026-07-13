@@ -1348,7 +1348,7 @@ async function parseHoldings(file) {
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i].map(c => String(c || '').toLowerCase());
-    if (r.some(c => c.includes('description')) && r.some(c => c.includes('market value') || c.includes('market'))) {
+    if (r.some(c => c.includes('description') || c.includes('position')) && r.some(c => c.includes('market value') || c.includes('market'))) {
       headerRow = i;
       break;
     }
@@ -1363,22 +1363,50 @@ async function parseHoldings(file) {
 
   const headers = rows[headerRow].map(c => String(c || '').toLowerCase().trim());
   const idx = {
-    desc:    headers.findIndex(h => h.includes('description')),
+    desc:    headers.findIndex(h => h.includes('description') || h.includes('position')),
     symbol:  headers.findIndex(h => h.includes('symbol') || h.includes('cusip')),
     qty:     headers.findIndex(h => h.includes('quantity') || h === 'qty'),
     price:   headers.findIndex(h => h.includes('close price') || h.includes('price')),
     book:    headers.findIndex(h => h.includes('book value') && !h.includes('market')),
     mv:      headers.findIndex(h => h.includes('market value')),
-    gl:      headers.findIndex(h => h.includes('gain/loss ($)') || (h.includes('gain') && h.includes('$'))),
-    glpct:   headers.findIndex(h => h.includes('gain/loss (%)') || (h.includes('gain') && h.includes('%'))),
+    gl:      headers.findIndex(h => (h.includes('g/l') || h.includes('gil(') || h.includes('gain')) && h.includes('$')),
+    glpct:   headers.findIndex(h => (h.includes('g/l') || h.includes('gil(') || h.includes('gain')) && h.includes('%')),
     pct:     headers.findIndex(h => h === '% of total' || h.includes('% of')),
     income:  headers.findIndex(h => h.includes('income')),
   };
 
+  // Some custodian exports merge a row's description/symbol cells into a single
+  // jammed string in column A (e.g. "1.0%   SALESFORCE COM CDR ...   CRM") when
+  // the security name wraps. Recover desc/symbol from it rather than dropping the row.
+  const splitJammedRow = (raw) => {
+    let s = String(raw || '').trim().replace(/^[\d.]+%\s*/, '');
+    const m = s.match(/^(.*\S)\s{2,}([A-Z0-9]{2,10})$/);
+    if (m) return { desc: m[1].replace(/\s{2,}/g, ' ').trim(), symbol: m[2].trim() };
+    return { desc: s.replace(/\s{2,}/g, ' ').trim(), symbol: '' };
+  };
+
   for (let i = headerRow + 1; i < rows.length; i++) {
     const r = rows[i];
-    if (!r || !r[idx.desc]) continue;
-    const desc = String(r[idx.desc] || '').trim();
+    if (!r) continue;
+    let desc = String(r[idx.desc] || '').trim();
+    let symFallback = '';
+    let mvOverride = null;
+    if (!desc && typeof r[0] === 'string' && r[0].trim()) {
+      if (!isNaN(parseFloat(r[idx.qty]))) {
+        // A real holding whose description/symbol cells got merged into column A.
+        const split = splitJammedRow(r[0]);
+        desc = split.desc;
+        symFallback = split.symbol;
+      } else if (/cash/i.test(r[0])) {
+        // Cash balance line — no quantity, and its dollar figures are jammed into column A too.
+        const nameMatch = r[0].match(/^[\d.]*%?\s*(.+?)\s{2,}/);
+        const amounts = (r[0].match(/[\d,]+\.\d{2}(?!\d)/g) || []).map(s => parseFloat(s.replace(/,/g, '')));
+        if (nameMatch && amounts.length) {
+          desc = nameMatch[1].replace(/\s{2,}/g, ' ').trim();
+          mvOverride = amounts[Math.min(1, amounts.length - 1)];
+        }
+      }
+    }
     if (!desc) continue;
     const d = desc.toLowerCase();
     if (d.includes('total') || d.includes('mutual funds') || d === 'cash balance') {
@@ -1392,13 +1420,13 @@ async function parseHoldings(file) {
       _importLog.skipped.push({ desc, reason: 'section header row' });
       continue;
     }
-    const mv = parseFloat(r[idx.mv]) || 0;
+    const mv = mvOverride != null ? mvOverride : (parseFloat(r[idx.mv]) || 0);
     if (mv === 0 && !d.includes('cash')) {
       _importLog.skipped.push({ desc, reason: 'zero market value' });
       continue;
     }
 
-    const sym = String(r[idx.symbol] || '—').trim();
+    const sym = String(r[idx.symbol] || symFallback || '—').trim();
     holdings.push({
       desc,
       symbol: sym,
@@ -1419,7 +1447,7 @@ async function parseHoldings(file) {
     if (!r) continue;
     const catCell = String(r[0] || '').trim();
     const desc = String(r[idx.desc] || '').trim();
-    if (catCell && catCell.length < 10) {
+    if (catCell && catCell.length < 10 && !/^[\d.,%\s-]+$/.test(catCell)) {
       const h = holdings.find(h => h.desc === desc);
       if (h) h.cat = catCell;
     }
