@@ -811,6 +811,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <th class="r">Deployed $</th>
             <th class="r">Remaining $</th>
             <th>Status</th>
+            <th title="Reduce (Buy) or add (Sell) this trade's Target $ to the client's cash balance">Cash</th>
             <th>Notes</th>
             <th></th>
           </tr></thead>
@@ -887,6 +888,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Portfolio Holdings</h3>
         <div style="display:flex;gap:8px;align-items:center;">
+          <button class="rebal-ghost-btn" onclick="addHoldingRow()" style="border-color:rgba(255,255,255,0.5);color:#fff;" title="Add a new position">+ Add Holding</button>
           <button class="rebal-ghost-btn" onclick="addHoldingsToLibrary()" style="border-color:rgba(255,255,255,0.5);color:#fff;" title="Push all holdings into the Settings library for autocomplete">&#8659; Add all to Library</button>
           <span class="badge" id="holdings-badge">Auto-populated</span>
         </div>
@@ -897,7 +899,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
           <thead><tr>
             <th>Description</th><th>Symbol</th><th>Asset Class</th>
             <th class="r">% of Total</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Book Value</th>
-            <th class="r">Market Value</th><th class="r">Income</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th><th style="width:24px;"></th>
+            <th class="r">Market Value</th><th class="r">Income</th><th class="r">Gain/Loss $</th><th class="r">Gain/Loss %</th><th title="Fund this position from the client's cash balance">Cash</th><th style="width:24px;"></th>
           </tr></thead>
           <tbody id="holdings-tbody"></tbody>
         </table>
@@ -1010,6 +1012,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <th class="r">Target %</th>
             <th class="r">Difference</th>
             <th class="r">To Buy / Sell</th>
+            <th title="Fund a new position by reducing the client's cash target %">Cash</th>
             <th>Advisor Notes</th>
           </tr></thead>
           <tbody id="rebal-tbody"></tbody>
@@ -1747,15 +1750,22 @@ function renderHoldings() {
     headerInfo.innerHTML = `<span><strong>Client:</strong> ${client}</span><span><strong>Account #:</strong> ${acct}</span><span><strong>Date:</strong> ${date}</span><span><strong>Currency:</strong> CAD</span>`;
   }
 
+  const cashImpact = computeCashImpact();
+  const cashImpactStat = cashImpact !== 0 ? `
+    <div class="stat-card"><div class="lbl">Cash After Pending Trades</div><div class="val ${clsSign(cashImpact)}">${fmt$((getCashHolding()?.mv || 0) + cashImpact)}</div></div>
+  ` : '';
   document.getElementById('holdings-stats').innerHTML = `
     <div class="stat-card"><div class="lbl">Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
     <div class="stat-card"><div class="lbl">Book Value</div><div class="val">${fmt$(totalBook)}</div></div>
     <div class="stat-card"><div class="lbl">Total Gain/Loss</div><div class="val ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</div></div>
     <div class="stat-card"><div class="lbl">Overall Return</div><div class="val ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</div></div>
+    ${cashImpactStat}
   `;
 
   const tbody = document.getElementById('holdings-tbody');
   tbody.innerHTML = '';
+
+  const cashRow = getCashHolding();
 
   h.forEach((row, i) => {
     const assetClass = row.assetClass || getAssetClass(row.symbol, row.desc);
@@ -1808,6 +1818,13 @@ function renderHoldings() {
     const glpctCell = eCell('r ' + clsSign(row.glpct), fmtPct(row.glpct), 'glpct');
     tr.appendChild(glpctCell);
 
+    const cashTd = document.createElement('td');
+    cashTd.style.textAlign = 'center';
+    if (row !== cashRow) {
+      cashTd.innerHTML = `<input type="checkbox" title="Fund this position from cash" ${row.fundedFromCash ? 'checked' : ''} onchange="toggleHoldingFundedFromCash(${i},this.checked)">`;
+    }
+    tr.appendChild(cashTd);
+
     const delTd = document.createElement('td');
     delTd.innerHTML = `<button class="rebal-del" onclick="deleteHolding(${i})" title="Remove row">×</button>`;
     tr.appendChild(delTd);
@@ -1834,7 +1851,42 @@ function renderHoldings() {
 }
 
 function deleteHolding(i) {
+  const row = state.holdings[i];
+  if (row && row.fundedFromCash) {
+    row.fundedFromCash = false;
+    syncCashFunding(i);
+  }
   state.holdings.splice(i, 1);
+  renderHoldings();
+}
+
+function addHoldingRow() {
+  if (!state.holdings) state.holdings = [];
+  state.holdings.push({ desc: '', symbol: '', cat: '', assetClass: '', qty: null, price: null, book: 0, mv: 0, gl: 0, glpct: 0, income: null, fundedFromCash: false, cashFundedAmount: 0 });
+  renderHoldings();
+  setTimeout(() => {
+    const cells = document.querySelectorAll('#holdings-tbody td[data-field="desc"]');
+    if (cells.length) cells[cells.length - 1].focus();
+  }, 30);
+}
+
+// Keeps the cash holding's Market Value in sync with any rows marked "funded from cash".
+// Tracks each row's own contribution (cashFundedAmount) so edits/toggles apply as a delta
+// rather than re-subtracting the full amount every time.
+function syncCashFunding(i) {
+  const row = state.holdings[i];
+  const cash = getCashHolding();
+  if (!row || !cash || row === cash) return;
+  const desired = row.fundedFromCash ? (row.mv || 0) : 0;
+  const delta = desired - (row.cashFundedAmount || 0);
+  if (delta !== 0) cash.mv -= delta;
+  row.cashFundedAmount = desired;
+}
+
+function toggleHoldingFundedFromCash(i, checked) {
+  state.holdings[i].fundedFromCash = checked;
+  syncCashFunding(i);
+  updateHoldingsTotals();
   renderHoldings();
 }
 
@@ -1867,6 +1919,7 @@ function handleHoldingEdit(td) {
   } else if (field === 'mv') {
     row.mv = isNaN(parsed) ? 0 : parsed;
     td.textContent = fmt$(row.mv);
+    if (row.fundedFromCash) { syncCashFunding(i); renderHoldings(); return; }
   } else if (field === 'income') {
     row.income = isNaN(parsed) ? null : parsed;
     td.textContent = row.income ? fmt$(row.income) : '—';
@@ -1893,11 +1946,16 @@ function updateHoldingsTotals() {
   const totalGLpct = totalBook > 0 ? totalGL / totalBook : 0;
   const totalIncome = h.reduce((s, r) => s + (r.income || 0), 0);
 
+  const cashImpact = computeCashImpact();
+  const cashImpactStat = cashImpact !== 0 ? `
+    <div class="stat-card"><div class="lbl">Cash After Pending Trades</div><div class="val ${clsSign(cashImpact)}">${fmt$((getCashHolding()?.mv || 0) + cashImpact)}</div></div>
+  ` : '';
   document.getElementById('holdings-stats').innerHTML = `
     <div class="stat-card"><div class="lbl">Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
     <div class="stat-card"><div class="lbl">Book Value</div><div class="val">${fmt$(totalBook)}</div></div>
     <div class="stat-card"><div class="lbl">Total Gain/Loss</div><div class="val ${clsSign(totalGL)}">${totalGL >= 0 ? '+' : ''}${fmt$(totalGL)}</div></div>
     <div class="stat-card"><div class="lbl">Overall Return</div><div class="val ${clsSign(totalGLpct)}">${fmtPct(totalGLpct)}</div></div>
+    ${cashImpactStat}
   `;
 
   h.forEach((row, i) => {
@@ -1993,7 +2051,7 @@ function renderAdvisor() {
 
   const h = state.holdings;
   if (!h || !h.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:2rem;">Load a portfolio to use the rebalancer.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem;">Load a portfolio to use the rebalancer.</td></tr>';
     document.getElementById('rebal-stats').innerHTML = '';
     return;
   }
@@ -2024,6 +2082,7 @@ function renderAdvisor() {
       </td>
       <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
       <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}&nbsp;<button class="rebal-replace-btn" onclick="replaceHolding('${escHtml(key)}','${escHtml(assetClass)}')" title="Zero this out and add a replacement">Replace →</button></td>
+      <td></td>
       <td><input class="rebal-new-input" type="text" placeholder="e.g. Trimming — overvalued vs sector peers" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes['${escHtml(key)}']=this.value" style="width:260px;"></td>
     `;
     tbody.appendChild(tr);
@@ -2033,7 +2092,7 @@ function renderAdvisor() {
   const newPositions = state.rebalanceNew || [];
   if (newPositions.length) {
     const sepRow = document.createElement('tr');
-    sepRow.innerHTML = `<td colspan="7" style="padding:5px 10px 3px;font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:#f8f5f0;border-top:2px dashed var(--border);">New Positions</td>`;
+    sepRow.innerHTML = `<td colspan="8" style="padding:5px 10px 3px;font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:#f8f5f0;border-top:2px dashed var(--border);">New Positions</td>`;
     tbody.appendChild(sepRow);
     newPositions.forEach((pos, i) => {
       totalTargetPct += pos.targetPct;
@@ -2061,6 +2120,7 @@ function renderAdvisor() {
         </td>
         <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
         <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
+        <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
         <td><input class="rebal-new-input" type="text" placeholder="e.g. Adding growth exposure — replacing MCD" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value" style="width:260px;"></td>
       `;
       tbody.appendChild(tr);
@@ -2350,10 +2410,45 @@ function handleRebalInput(input) {
   updateRebalStats(totalMV, totalTargetPct);
 }
 
+// Finds the client's cash holding's rebalance key (same "desc|symbol" key used in state.rebalance).
+function getCashRebalKey() {
+  const cash = getCashHolding();
+  return cash ? cash.desc + '|' + cash.symbol : null;
+}
+
+// Reduces (or restores) the cash row's rebalance target % to fund a new position, tracked as a
+// delta via pos.cashFundedPct so repeated edits/toggles don't compound.
+function syncRebalCashFunding(i) {
+  const pos = state.rebalanceNew[i];
+  const cash = getCashHolding();
+  const cashKey = getCashRebalKey();
+  if (!pos || !cash || !cashKey) return;
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  if (!state.rebalance) state.rebalance = {};
+  if (state.rebalance[cashKey] === undefined) state.rebalance[cashKey] = cash.mv / totalMV * 100;
+  const desired = pos.fundedFromCash ? (pos.targetPct || 0) : 0;
+  const delta = desired - (pos.cashFundedPct || 0);
+  state.rebalance[cashKey] = Math.max(0, state.rebalance[cashKey] - delta);
+  pos.cashFundedPct = desired;
+}
+
+function toggleRebalFundedFromCash(i, checked) {
+  state.rebalanceNew[i].fundedFromCash = checked;
+  syncRebalCashFunding(i);
+  renderAdvisor();
+}
+
 function handleNewRebalInput(input) {
   const i = parseInt(input.dataset.nidx);
   const val = parseFloat(input.value);
   if (!isNaN(val) && val >= 0) state.rebalanceNew[i].targetPct = val;
+
+  if (state.rebalanceNew[i].fundedFromCash) {
+    syncRebalCashFunding(i);
+    renderAdvisor();
+    return;
+  }
 
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
@@ -2454,7 +2549,7 @@ function handleRebalDescKey(event, input, idx) {
 
 function addRebalPosition() {
   if (!state.rebalanceNew) state.rebalanceNew = [];
-  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0 });
+  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0, fundedFromCash: false, cashFundedPct: 0 });
   renderAdvisor();
   setTimeout(() => {
     const inputs = document.querySelectorAll('.rebal-desc-input');
@@ -2463,6 +2558,11 @@ function addRebalPosition() {
 }
 
 function removeRebalPosition(i) {
+  const pos = (state.rebalanceNew || [])[i];
+  if (pos && pos.fundedFromCash) {
+    pos.fundedFromCash = false;
+    syncRebalCashFunding(i);
+  }
   (state.rebalanceNew || []).splice(i, 1);
   renderAdvisor();
 }
@@ -2634,7 +2734,7 @@ function syncImplementationFromTargets() {
       return { ...prev, desc: c.desc, symbol: c.symbol, assetClass: c.assetClass, type: c.type, targetDollars: c.targetDollars };
     }
     return { key: c.key, desc: c.desc, symbol: c.symbol, assetClass: c.assetClass, type: c.type,
-             targetDollars: c.targetDollars, deployedDollars: 0, notes: '', manual: false };
+             targetDollars: c.targetDollars, deployedDollars: 0, notes: '', manual: false, takeFromCash: false };
   });
 
   // Carry forward rows no longer matched by a current target (manual rows always carry forward)
@@ -2644,13 +2744,26 @@ function syncImplementationFromTargets() {
 
   state.implementation = merged;
   renderImplementation();
+  renderHoldings();
   showToast('Synced from Proposal');
+}
+
+function getCashHolding() {
+  return (state.holdings || []).find(h => h.assetClass === 'Cash' || /cash/i.test(h.desc || ''));
+}
+
+function computeCashImpact() {
+  return (state.implementation || []).reduce((sum, r) => {
+    if (!r.takeFromCash) return sum;
+    const target = r.targetDollars || 0;
+    return sum + (r.type === 'Sell' ? target : -target);
+  }, 0);
 }
 
 function addImplementationRow() {
   if (!state.implementation) state.implementation = [];
   state.implementation.push({ key: 'MANUAL:' + Date.now(), desc: '', symbol: '', assetClass: '', type: 'Buy',
-    targetDollars: 0, deployedDollars: 0, notes: '', manual: true });
+    targetDollars: 0, deployedDollars: 0, notes: '', manual: true, takeFromCash: false });
   renderImplementation();
   setTimeout(() => {
     const inputs = document.querySelectorAll('#impl-tbody .impl-desc-input');
@@ -2659,8 +2772,10 @@ function addImplementationRow() {
 }
 
 function removeImplementationRow(i) {
+  const hadCashImpact = !!state.implementation[i]?.takeFromCash;
   state.implementation.splice(i, 1);
   renderImplementation();
+  if (hadCashImpact) renderHoldings();
 }
 
 function handleImplDeployedInput(input) {
@@ -2673,6 +2788,13 @@ function handleImplTargetInput(input) {
   const i = +input.dataset.iidx;
   state.implementation[i].targetDollars = Math.max(0, +input.value || 0);
   renderImplementation();
+  if (state.implementation[i].takeFromCash) renderHoldings();
+}
+
+function toggleImplTakeFromCash(i, checked) {
+  state.implementation[i].takeFromCash = checked;
+  renderImplementation();
+  renderHoldings();
 }
 
 function handleImplDescInput(input, idx) {
@@ -2752,7 +2874,7 @@ function renderImplementation() {
   tbody.innerHTML = '';
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem;">No trades tracked yet — click "Sync from Proposal" to pull in the signed-off target allocation, or "Add Row" for a one-off entry.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:2rem;">No trades tracked yet — click "Sync from Proposal" to pull in the signed-off target allocation, or "Add Row" for a one-off entry.</td></tr>';
     document.getElementById('impl-stats').innerHTML = '';
     return;
   }
@@ -2785,7 +2907,7 @@ function renderImplementation() {
       <td>${escHtml(r.assetClass || '—')}</td>
       <td class="r" style="padding-top:4px;padding-bottom:4px;">
         ${r.manual ? `
-        <select onchange="state.implementation[${i}].type=this.value;renderImplementation();" style="font-size:0.76rem;">
+        <select onchange="state.implementation[${i}].type=this.value;renderImplementation();if(state.implementation[${i}].takeFromCash)renderHoldings();" style="font-size:0.76rem;">
           <option value="Buy"${r.type==='Buy'?' selected':''}>Buy</option>
           <option value="Sell"${r.type==='Sell'?' selected':''}>Sell</option>
         </select>
@@ -2797,6 +2919,9 @@ function renderImplementation() {
       </td>
       <td class="r">${fmt$(remaining)}</td>
       <td><span style="font-size:0.72rem;font-weight:600;color:${status.color};">${status.label}</span></td>
+      <td style="text-align:center;">
+        <input type="checkbox" title="${r.type === 'Sell' ? 'Add proceeds to cash' : 'Take from cash'}" ${r.takeFromCash ? 'checked' : ''} onchange="toggleImplTakeFromCash(${i},this.checked)">
+      </td>
       <td><input class="rebal-new-input" type="text" placeholder="Notes…" value="${escHtml(r.notes||'')}" oninput="state.implementation[${i}].notes=this.value" style="width:200px;"></td>
       <td><button onclick="removeImplementationRow(${i})" class="rebal-del" title="Remove">×</button></td>
     `;
@@ -2825,6 +2950,7 @@ function renderImplementation() {
       <td onclick="toggleImplGroup('${group}')"></td>
       <td onclick="toggleImplGroup('${group}')"></td>
       <td onclick="toggleImplGroup('${group}')"></td>
+      <td onclick="toggleImplGroup('${group}')"></td>
     `;
     tbody.appendChild(headerTr);
 
@@ -2835,11 +2961,17 @@ function renderImplementation() {
   const pctComplete = totalTarget ? Math.min(100, totalDeployed / totalTarget * 100) : 0;
 
   const statsEl = document.getElementById('impl-stats');
+  const cashHolding = getCashHolding();
+  const cashImpact = computeCashImpact();
+  const cashStat = cashHolding ? `
+    <div class="stat-card"><div class="lbl">Cash After Pending Trades</div><div class="val ${clsSign(cashImpact)}">${fmt$(cashHolding.mv + cashImpact)}</div></div>
+  ` : '';
   if (statsEl) statsEl.innerHTML = `
     <div class="stat-card"><div class="lbl">Total Target</div><div class="val">${fmt$(totalTarget)}</div></div>
     <div class="stat-card"><div class="lbl">Total Deployed</div><div class="val">${fmt$(totalDeployed)}</div></div>
     <div class="stat-card"><div class="lbl">Remaining</div><div class="val">${fmt$(totalRemaining)}</div></div>
     <div class="stat-card"><div class="lbl">% Complete</div><div class="val">${pctComplete.toFixed(1)}%</div></div>
+    ${cashStat}
   `;
 }
 
@@ -3451,6 +3583,7 @@ function switchTab(idx) {
   document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
   if (idx === 0) renderProposal();
   if (idx === 1) renderImplementation();
+  if (idx === 3) renderHoldings();
   if (idx === 5) renderFinal();
   if (idx === 6) renderAdvisor();
   scheduleAutoSave();
