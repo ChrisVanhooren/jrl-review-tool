@@ -1,6 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
+const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
 
 process.on('uncaughtException', err => console.error('Uncaught:', err.message));
@@ -12,6 +13,63 @@ process.on('SIGINT', () => { console.log('SIGINT received'); process.exit(0); })
 const app = express();
 
 app.get('/health', (req, res) => res.send('ok'));
+
+// --- Access code gate ---------------------------------------------------
+const ACCESS_CODE = process.env.ACCESS_CODE || '3550';
+const COOKIE_SECRET = process.env.COOKIE_SECRET || 'jrl-portfolio-review-tool';
+const COOKIE_NAME = 'jrl_access';
+
+function accessToken() {
+  return crypto.createHmac('sha256', COOKIE_SECRET).update('granted').digest('hex');
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie;
+  const cookies = {};
+  if (!header) return cookies;
+  header.split(';').forEach(pair => {
+    const idx = pair.indexOf('=');
+    if (idx === -1) return;
+    cookies[pair.slice(0, idx).trim()] = decodeURIComponent(pair.slice(idx + 1).trim());
+  });
+  return cookies;
+}
+
+app.use(express.urlencoded({ extended: false }));
+
+app.get('/gate', (req, res) => {
+  const error = req.query.error ? '<p style="color:#b91c1c;margin:0 0 16px;font-size:14px;">Incorrect code.</p>' : '';
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JRL Private Wealth</title>
+<style>
+body{font-family:-apple-system,'DM Sans',sans-serif;background:#0f1f3d;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+.box{background:#faf8f4;padding:40px 36px;border-radius:8px;box-shadow:0 2px 24px rgba(0,0,0,0.3);width:280px;text-align:center;}
+h1{font-size:18px;color:#1a1a2e;margin:0 0 20px;}
+input{width:100%;box-sizing:border-box;padding:10px 12px;font-size:16px;border:1px solid #e2ddd6;border-radius:6px;text-align:center;letter-spacing:2px;margin-bottom:16px;}
+button{width:100%;padding:10px;font-size:14px;font-weight:600;background:#0f1f3d;color:#c9a84c;border:none;border-radius:6px;cursor:pointer;}
+</style></head><body>
+<div class="box"><h1>Access Code</h1><form method="POST" action="/gate">${error}
+<input type="password" inputmode="numeric" name="code" autofocus>
+<button type="submit">Enter</button>
+</form></div></body></html>`);
+});
+
+app.post('/gate', (req, res) => {
+  if (req.body.code === ACCESS_CODE) {
+    res.cookie(COOKIE_NAME, accessToken(), { httpOnly: true, sameSite: 'lax', maxAge: 1000 * 60 * 60 * 24 * 365 });
+    return res.redirect('/');
+  }
+  res.redirect('/gate?error=1');
+});
+
+app.use((req, res, next) => {
+  if (req.path === '/gate' || req.path === '/health') return next();
+  const cookies = parseCookies(req);
+  if (cookies[COOKIE_NAME] === accessToken()) return next();
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
+  return res.redirect('/gate');
+});
+// -------------------------------------------------------------------------
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
