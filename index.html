@@ -2109,7 +2109,12 @@ function renderAdvisor() {
             <div class="rebal-autocomplete-list" id="rebal-ac-${i}"></div>
           </div>
         </td>
-        <td style="padding:5px 10px;"><input type="text" class="rebal-new-input" placeholder="Asset class…" value="${escHtml(pos.assetClass)}" oninput="state.rebalanceNew[${i}].assetClass=this.value" style="color:var(--navy-mid);font-weight:500;font-size:0.76rem;"></td>
+        <td style="padding:5px 10px;" class="cell-ac">
+          <select class="ac-select" onchange="state.rebalanceNew[${i}].assetClass=this.value;">
+            <option value="">— Select —</option>
+            ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${pos.assetClass===o?' selected':''}>${o}</option>`).join('')}
+          </select>
+        </td>
         <td class="r" style="color:var(--muted);">$0.00</td>
         <td class="r" style="color:var(--muted);">0.00%</td>
         <td class="r" style="padding-top:4px;padding-bottom:4px;">
@@ -2905,7 +2910,11 @@ function renderImplementation() {
         </div>` : escHtml(r.desc || '')}
       </td>
       <td>${r.manual ? `<input type="text" class="rebal-new-input" value="${escHtml(r.symbol||'')}" oninput="state.implementation[${i}].symbol=this.value" style="width:90px;">` : escHtml(r.symbol || '—')}</td>
-      <td>${escHtml(r.assetClass || '—')}</td>
+      <td class="${r.manual ? 'cell-ac' : ''}">${r.manual ? `
+        <select class="ac-select" onchange="state.implementation[${i}].assetClass=this.value;">
+          <option value="">— Select —</option>
+          ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${r.assetClass===o?' selected':''}>${o}</option>`).join('')}
+        </select>` : escHtml(r.assetClass || '—')}</td>
       <td class="r" style="padding-top:4px;padding-bottom:4px;">
         ${r.manual ? `
         <select onchange="state.implementation[${i}].type=this.value;renderImplementation();if(state.implementation[${i}].takeFromCash)renderHoldings();" style="font-size:0.76rem;">
