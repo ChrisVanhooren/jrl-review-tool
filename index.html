@@ -3090,7 +3090,7 @@ function printProposal() {
 }
 
 // ── NEW PORTFOLIO PREVIEW/PRINT ──
-const PORTFOLIO_GROUP_ORDER = ['Cash & Equivalent', 'Fixed Income', 'Public Equities', 'Alternatives', 'Other'];
+const PORTFOLIO_GROUP_ORDER = ['Cash & Equivalent', 'Fixed Income', 'Public Equities', 'Alternatives', 'Other', 'Unallocated'];
 
 function groupForAssetClass(cls) {
   const c = (cls || '').trim();
@@ -3123,20 +3123,25 @@ function buildNewPortfolioRows() {
     rows.push({ desc: pos.desc, symbol: '', assetClass: pos.assetClass || 'Other', dollars, isNew: true });
   });
 
-  return rows;
+  return { rows, totalMV };
 }
 
 function printNewPortfolio() {
-  const rows = buildNewPortfolioRows();
+  const { rows, totalMV } = buildNewPortfolioRows();
   const client = document.getElementById('f-client')?.value || 'Client';
   const date   = document.getElementById('f-date')?.value  || '';
-  const totalMV = rows.reduce((s, r) => s + r.dollars, 0) || 1;
 
   if (!rows.length) { alert('No positions to show — set targets in the Rebalancer first.'); return; }
 
+  const allocatedDollars = rows.reduce((s, r) => s + r.dollars, 0);
+  const unallocated = totalMV - allocatedDollars;
+  if (unallocated > totalMV * 0.0005) {
+    rows.push({ desc: 'Unallocated (not yet assigned a target)', symbol: '', assetClass: 'Unallocated', dollars: unallocated, isNew: false });
+  }
+
   const grouped = {};
   rows.forEach(r => {
-    const g = groupForAssetClass(r.assetClass);
+    const g = r.assetClass === 'Unallocated' ? 'Unallocated' : groupForAssetClass(r.assetClass);
     (grouped[g] = grouped[g] || []).push(r);
   });
 
@@ -3154,7 +3159,8 @@ function printNewPortfolio() {
       <td style="padding:4px 6px;text-align:right;">${fmtC(groupDollars) || '$0'}</td>
     </tr>`;
     list.forEach(r => {
-      body += `<tr>
+      const unalloc = r.assetClass === 'Unallocated';
+      body += `<tr${unalloc ? ' style="color:#b45309;font-style:italic;"' : ''}>
         <td style="padding:3px 6px;padding-left:14px;">${escHtml(r.desc)}${r.isNew ? ' <span style="font-size:0.62rem;font-weight:700;color:#16a34a;letter-spacing:0.05em;">NEW</span>' : ''}</td>
         <td style="padding:3px 6px;">${escHtml(r.symbol || '—')}</td>
         <td style="padding:3px 6px;text-align:right;">${(r.dollars/totalMV*100).toFixed(1)}%</td>
