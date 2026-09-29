@@ -18,16 +18,25 @@
   --navy-mid: #1a3260;
   --gold: #c9a84c;
   --gold-light: #e8d5a3;
-  --cream: #faf8f4;
+  --slate: #1e293b;
+  --cream: #f5f7fa;
   --white: #ffffff;
-  --ink: #1a1a2e;
-  --muted: #6b7280;
-  --border: #e2ddd6;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --surface-2: #f8fafc;
+  --hover: #f1f5f9;
+  --bg: var(--cream);
+  --bg-alt: var(--hover);
+  --ring: 0 0 0 3px rgba(201,168,76,0.28);
   --success: #1a7c5a;
   --danger: #b91c1c;
   --tab-h: 52px;
   --radius: 8px;
-  --shadow: 0 2px 12px rgba(15,31,61,0.08);
+  --control-h: 34px;
+  --shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06);
+  --shadow-md: 0 4px 12px rgba(15,23,42,0.08);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
@@ -99,12 +108,12 @@ body {
   background: var(--white);
   position: relative;
 }
-.drop-zone:hover, .drop-zone.over { border-color: var(--gold); background: #fffdf7; }
+.drop-zone:hover, .drop-zone.over { border-color: var(--gold); background: var(--surface-2); }
 .drop-zone.done { border-color: var(--success); border-style: solid; }
 .drop-icon {
   width: 44px; height: 44px;
   border-radius: 50%;
-  background: #f0ede7;
+  background: var(--hover);
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 1rem;
   font-size: 1.2rem;
@@ -115,23 +124,6 @@ body {
 .drop-filename { font-size: 0.78rem; color: var(--success); font-weight: 500; margin-top: 0.5rem; }
 .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-.btn-build {
-  background: var(--navy);
-  color: var(--white);
-  border: none;
-  border-radius: var(--radius);
-  padding: 0.85rem 2.5rem;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  transition: background 0.2s, transform 0.1s;
-  display: flex; align-items: center; gap: 8px;
-}
-.btn-build:hover { background: var(--navy-mid); }
-.btn-build:active { transform: scale(0.98); }
-.btn-build:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── PROGRESS ── */
 #progress-screen {
@@ -155,40 +147,45 @@ body {
   background: var(--white);
   border-bottom: 1px solid var(--border);
   display: flex;
-  padding: 0 2.5rem;
-  gap: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 0.6rem 2.5rem;
+  gap: 4px;
   position: sticky;
   top: 60px;
   z-index: 90;
 }
 .tab-btn {
-  height: var(--tab-h);
-  padding: 0 1.4rem;
-  border: none;
+  height: 36px;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: none;
   font-family: 'DM Sans', sans-serif;
   font-size: 0.85rem;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--muted);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
   display: flex; align-items: center; gap: 7px;
+  white-space: nowrap; flex-shrink: 0;
 }
+.tab-btn:hover { background: var(--hover); color: var(--ink); }
 .tab-btn .tab-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--border); flex-shrink: 0;
+  background: var(--border-strong); flex-shrink: 0;
 }
-.tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); font-weight: 500; }
+.tab-btn.active { background: var(--navy); color: var(--white); box-shadow: var(--shadow-md); }
 .tab-btn.active .tab-dot { background: var(--gold); }
 .tab-btn.filled .tab-dot { background: var(--success); }
+.tab-btn.active.filled .tab-dot { background: #6ee7b7; }
+.tab-btn:focus-visible, .tab-gear-btn:focus-visible { outline: none; box-shadow: var(--ring); }
 .tab-gear-btn {
-  margin-left: auto; height: var(--tab-h); border: none; background: none;
-  color: var(--muted); cursor: pointer; padding: 0 1rem;
-  display: flex; align-items: center; transition: color 0.15s;
+  margin-left: auto; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--white); color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: color 0.15s, background 0.15s;
 }
-.tab-gear-btn:hover { color: var(--navy); }
+.tab-gear-btn:hover { color: var(--navy); background: var(--hover); }
 
 /* ── CONTENT ── */
 .tab-content { display: none; padding: 2rem 2.5rem 4rem; max-width: 1500px; }
@@ -199,52 +196,82 @@ body {
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: 12px;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
   overflow: hidden;
+  box-shadow: var(--shadow);
 }
 .card-head {
-  background: var(--navy);
-  padding: 0.6rem 1.25rem;
-  display: flex; align-items: center; justify-content: space-between;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  border-top: 3px solid var(--navy);
+  padding: 0.85rem 1.5rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
 }
 .card-head h3 {
   font-family: 'DM Sans', sans-serif;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: rgba(255,255,255,0.7);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: 0;
 }
+.card-head .card-sub { font-size: 0.76rem; color: var(--muted); margin-top: 2px; font-weight: 400; }
 .card-head .badge {
-  font-size: 0.68rem; padding: 2px 8px; border-radius: 20px;
-  background: rgba(201,168,76,0.2); color: var(--gold-light);
+  font-size: 0.68rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: #fbf5e4; color: #8a6d1f; border: 1px solid var(--gold-light);
+  white-space: nowrap;
 }
-.card-body { padding: 1.25rem; }
+.card-body { padding: 1.5rem; }
+
+/* ── BUTTONS ── */
+.btn {
+  height: var(--control-h); padding: 0 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: var(--radius); border: 1px solid transparent;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 600; line-height: 1;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn svg { flex-shrink: 0; }
+.btn-primary { background: var(--gold); color: var(--navy); }
+.btn-primary:hover { background: #b8963e; }
+.btn-dark { background: var(--navy); color: var(--white); }
+.btn-dark:hover { background: var(--navy-mid); }
+.btn-secondary { background: var(--white); color: var(--navy); border-color: var(--border-strong); font-weight: 500; }
+.btn-secondary:hover { background: var(--hover); border-color: var(--muted); }
 
 /* ── TABLES ── */
 table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 thead th {
-  text-align: left; padding: 7px 10px;
-  font-size: 0.72rem; font-weight: 600; color: var(--muted);
+  text-align: left; padding: 10px 12px;
+  font-size: 0.7rem; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
 }
 thead th.r { text-align: right; }
-tbody td { padding: 7px 10px; border-bottom: 1px solid #f3f0eb; vertical-align: middle; }
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover td { background: #faf8f4; }
+tbody tr:hover td { background: var(--surface-2); }
 td.r { text-align: right; font-variant-numeric: tabular-nums; }
 .pos { color: var(--success); }
 .neg { color: var(--danger); }
-.tfoot-row td { font-weight: 600; border-top: 1.5px solid var(--border); border-bottom: none; background: #f8f5f0; }
+.tfoot-row td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; background: var(--surface-2); }
 
 /* ── PROPOSAL SECTION GROUPS ── */
-.proposal-section-row td { background: var(--navy); color: #fff; font-weight: 600; padding: 8px 10px; cursor: pointer; user-select: none; border-bottom: none; }
-.proposal-section-row:hover td { background: var(--navy-mid); }
-.proposal-section-row .chevron { display: inline-block; margin-right: 7px; transition: transform 0.15s ease; font-size: 0.7rem; }
+.proposal-section-row td {
+  background: var(--hover); color: var(--navy); font-weight: 700; padding: 10px 12px;
+  cursor: pointer; user-select: none;
+  border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border);
+}
+.proposal-section-row td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.proposal-section-row:hover td { background: #e8edf3; }
+.proposal-section-row .chevron { display: inline-block; margin-right: 7px; transition: transform 0.15s ease; font-size: 0.7rem; color: var(--muted); }
 .proposal-section-row.collapsed .chevron { transform: rotate(-90deg); }
-.proposal-section-row td.r { color: var(--gold-light); }
+.proposal-section-row td.r { color: var(--navy); }
 
 /* ── NW INPUTS ── */
 .nw-grid {
@@ -253,60 +280,73 @@ td.r { text-align: right; font-variant-numeric: tabular-nums; }
   gap: 0;
 }
 .nw-grid .hdr {
-  padding: 7px 10px;
-  font-size: 0.72rem; font-weight: 600; color: var(--muted);
+  padding: 10px 12px;
+  font-size: 0.7rem; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
 }
 .nw-grid .hdr.r { text-align: right; }
 .nw-row { display: contents; }
 .nw-row > div {
-  padding: 5px 10px;
-  border-bottom: 1px solid #f3f0eb;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
   display: flex; align-items: center;
   font-size: 0.82rem;
 }
 .nw-row:last-child > div { border-bottom: none; }
 .nw-row > div:not(:first-child) { justify-content: flex-end; }
-.nw-row.subtotal > div { font-weight: 600; border-top: 1.5px solid var(--border); border-bottom: none; background: #f8f5f0; }
+.nw-row.subtotal > div { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; background: var(--surface-2); }
 .nw-row.net-worth > div {
-  font-weight: 600; font-size: 0.9rem;
-  background: var(--navy); color: var(--white);
+  font-weight: 700; font-size: 0.9rem;
+  background: var(--slate); color: var(--white);
   border-bottom: none;
 }
-input.nw-input {
-  width: 110px; text-align: right;
-  border: 1px solid var(--border);
-  border-radius: 5px; padding: 4px 8px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.82rem; color: var(--ink);
-  background: #faf8f4;
-  transition: border-color 0.15s;
+
+/* ── FORM CONTROLS ── */
+input.nw-input, .rebal-input, .sidebar-search, textarea.notes,
+.settings-table input[type="text"], .settings-table select, .field-select, td select {
+  font-family: 'DM Sans', sans-serif; color: var(--ink);
+  background-color: var(--white);
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
-input.nw-input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+input.nw-input:hover, .rebal-input:hover, .sidebar-search:hover, textarea.notes:hover,
+.settings-table input[type="text"]:hover, .settings-table select:hover, .field-select:hover, td select:hover { border-color: var(--muted); }
+input.nw-input:focus, .rebal-input:focus, .sidebar-search:focus, textarea.notes:focus,
+.settings-table input[type="text"]:focus, .settings-table select:focus, .field-select:focus, td select:focus {
+  outline: none; border-color: var(--gold); box-shadow: var(--ring);
+}
+.settings-table select, .field-select, td select {
+  appearance: none; -webkit-appearance: none;
+  height: 30px; padding: 0 28px 0 10px; font-size: 0.8rem; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+input.nw-input {
+  width: 110px; height: var(--control-h); text-align: right;
+  padding: 0 10px; font-size: 0.84rem;
+}
 
 /* ── STATS ROW ── */
 .stats-row {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.25rem;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;
 }
 .stat-card {
   background: var(--white); border: 1px solid var(--border);
-  border-radius: 10px; padding: 1rem 1.25rem;
+  border-radius: 12px; padding: 1.1rem 1.35rem;
+  box-shadow: var(--shadow);
 }
-.stat-card .lbl { font-size: 0.72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
-.stat-card .val { font-family: 'DM Serif Display', serif; font-size: 1.5rem; color: var(--navy); }
+.stat-card .lbl { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.stat-card .val { font-family: 'DM Sans', sans-serif; font-size: 1.6rem; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .stat-card .val.pos { color: var(--success); }
 .stat-card .val.neg { color: var(--danger); }
 
 /* ── NOTES ── */
 textarea.notes {
   width: 100%; min-height: 90px;
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
-  color: var(--ink); background: #faf8f4; resize: vertical;
-  transition: border-color 0.15s;
+  padding: 10px 12px; font-size: 0.85rem; resize: vertical;
 }
-textarea.notes:focus { outline: none; border-color: var(--gold); background: var(--white); }
 .field-label { font-size: 0.78rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
 .field-row { margin-bottom: 1rem; }
 
@@ -322,6 +362,9 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
 .fp-logo { font-family: 'DM Serif Display', serif; color: var(--gold); font-size: 1.4rem; }
 .fp-meta { text-align: right; font-size: 0.75rem; color: rgba(255,255,255,0.55); line-height: 2; }
 .fp-body { padding: 1.5rem 2rem; }
+/* Keep the client report's tables as they were — app table styling shouldn't leak into it. */
+.final-preview thead th { background: none; border-top: none; border-bottom: 1px solid var(--border); padding: 7px 10px; }
+.final-preview tbody td { padding: 7px 10px; }
 .fp-section { margin-bottom: 1.5rem; }
 .fp-section-title {
   font-size: 0.7rem; font-weight: 600; color: var(--muted);
@@ -335,61 +378,39 @@ textarea.notes:focus { outline: none; border-color: var(--gold); background: var
 /* ── EXPORT BTN ── */
 .export-bar {
   position: sticky; bottom: 0;
-  background: var(--white); border-top: 1px solid var(--border);
-  padding: 1rem 2.5rem;
-  display: flex; align-items: center; gap: 1rem;
-}
-.btn-export {
-  background: var(--gold);
-  color: var(--navy);
-  border: none; border-radius: var(--radius);
-  padding: 0.8rem 2rem;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.88rem; font-weight: 600;
-  cursor: pointer; letter-spacing: 0.03em;
-  transition: background 0.2s, transform 0.1s;
+  background: rgba(255,255,255,0.96); border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 12px rgba(15,23,42,0.04);
+  padding: 0.75rem 2.5rem;
   display: flex; align-items: center; gap: 8px;
 }
-.btn-export:hover { background: #b8963e; }
-.btn-export:active { transform: scale(0.98); }
-.export-note { font-size: 0.78rem; color: var(--muted); }
+.export-bar .btn { height: 38px; padding: 0 18px; }
+.export-note { font-size: 0.78rem; color: var(--muted); margin-left: 8px; }
 
 /* ── ALLOC BARS ── */
 .alloc-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.82rem; }
 .alloc-name { width: 220px; flex-shrink: 0; }
-.alloc-bar-wrap { flex: 1; background: #f0ede7; border-radius: 3px; height: 7px; }
+.alloc-bar-wrap { flex: 1; background: var(--hover); border-radius: 3px; height: 7px; }
 .alloc-bar { height: 7px; border-radius: 3px; }
 .alloc-pct { width: 48px; text-align: right; font-weight: 500; color: var(--navy); }
 
 /* ── EDITABLE CELLS ── */
 td[contenteditable="true"] { cursor: text; }
-td[contenteditable="true"]:hover { background: #fffdf7 !important; outline: 1px dashed #ddd; }
+td[contenteditable="true"]:hover { background: var(--surface-2) !important; outline: 1px dashed #ddd; }
 td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius: 2px; background: var(--white) !important; }
 .cell-muted { color: var(--muted); font-size: 0.78rem; }
 .cell-ac { font-size: 0.76rem; font-weight: 500; color: var(--navy-mid); }
 
 /* ── REBALANCER ── */
 .rebal-input {
-  width: 78px; text-align: right;
-  border: 1px solid var(--border); border-radius: 5px;
-  padding: 3px 6px;
-  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; color: var(--ink);
-  background: #faf8f4; transition: border-color 0.15s;
+  width: 78px; height: 30px; text-align: right;
+  padding: 0 8px; font-size: 0.82rem;
 }
-.rebal-input:focus { outline: none; border-color: var(--gold); background: var(--white); }
-.rebal-ghost-btn {
-  background: none; border: 1px solid rgba(255,255,255,0.25);
-  color: rgba(255,255,255,0.65); border-radius: 4px;
-  padding: 2px 10px; font-size: 0.72rem; cursor: pointer;
-  font-family: 'DM Sans', sans-serif; transition: border-color 0.15s, color 0.15s;
-}
-.rebal-ghost-btn:hover { border-color: rgba(255,255,255,0.55); color: #fff; }
 .rebal-new-input {
   border: none; background: transparent;
   font-family: 'DM Sans', sans-serif; font-size: 0.82rem; color: var(--ink);
   width: 100%; outline: none; padding: 0;
 }
-.rebal-new-input:focus { background: #fffdf7; outline: 1px solid var(--gold); border-radius: 3px; padding: 1px 4px; }
+.rebal-new-input:focus { background: var(--surface-2); outline: 1px solid var(--gold); border-radius: 3px; padding: 1px 4px; }
 .rebal-new-input::placeholder { color: #bbb; font-style: italic; }
 .rebal-autocomplete-wrap { position: relative; display: inline-block; width: 100%; }
 .rebal-autocomplete-list {
@@ -404,7 +425,7 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--gold); border-radius
   border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rebal-autocomplete-item:last-child { border-bottom: none; }
-.rebal-autocomplete-item:hover, .rebal-autocomplete-item.active { background: #f5f0e8; color: var(--navy); }
+.rebal-autocomplete-item:hover, .rebal-autocomplete-item.active { background: var(--hover); color: var(--navy); }
 .rebal-del {
   background: none; border: none; color: var(--muted); font-size: 1.05rem;
   line-height: 1; cursor: pointer; padding: 0 2px; opacity: 0;
@@ -516,27 +537,12 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 .agent-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 /* ── SETTINGS TABLE ── */
 .settings-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-.settings-table th { text-align: left; padding: 6px 10px; color: var(--muted); font-weight: 500; border-bottom: 2px solid var(--border); }
-.settings-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.settings-table td { padding: 6px 8px; vertical-align: middle; }
 .settings-table input[type="text"] {
-  width: 100%; border: 1px solid var(--border); border-radius: 4px;
-  padding: 5px 8px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
-  color: var(--ink); background: var(--white); outline: none;
+  width: 100%; height: 30px; padding: 0 10px; font-size: 0.82rem;
 }
-.settings-table input[type="text"]:focus { border-color: var(--navy); }
-.settings-table select {
-  width: 100%; border: 1px solid var(--border); border-radius: 4px;
-  padding: 5px 8px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
-  color: var(--ink); background: var(--white); outline: none; cursor: pointer;
-}
-.settings-table select:focus { border-color: var(--navy); }
-.ac-select {
-  border: none; background: transparent; font-family: 'DM Sans', sans-serif;
-  font-size: 0.76rem; color: var(--navy-mid); cursor: pointer; outline: none;
-  padding: 2px 2px; width: 100%; max-width: 180px;
-}
-.ac-select:hover { background: var(--cream); border-radius: 3px; }
-.ac-select:focus { background: var(--cream); border-radius: 3px; }
+.settings-table select { width: 100%; }
+td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: var(--navy-mid); }
 
 .settings-del-btn {
   background: none; border: none; color: var(--muted); font-size: 1rem;
@@ -563,7 +569,10 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 @media (max-width: 700px) {
   .upload-grid { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: 1fr 1fr; }
-  .tab-bar { padding: 0 1rem; }
+  .tab-bar { padding: 0.5rem 1rem; flex-wrap: nowrap; overflow-x: auto; top: 60px; }
+  .topbar { padding: 0 1rem; }
+  .logo span { display: none; }
+  .export-bar { padding: 0.75rem 1rem; flex-wrap: wrap; }
   .tab-content { padding: 1.25rem 1rem 3rem; }
   .nw-grid { grid-template-columns: 140px repeat(3, 1fr) 110px; }
 }
@@ -597,7 +606,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 .sidebar {
   width: 260px;
   flex-shrink: 0;
-  background: var(--white);
+  background: #eef2f6;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -607,55 +616,47 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   overflow: hidden;
 }
 .sidebar-top {
-  padding: 0.875rem;
+  padding: 1rem 0.875rem 0.875rem;
   border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
-.btn-new {
-  width: 100%;
-  padding: 0.55rem 1rem;
-  background: var(--navy);
-  color: var(--white);
-  border: none;
-  border-radius: var(--radius);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.btn-new:hover { background: var(--navy-mid); }
+.btn-new { width: 100%; }
 .sidebar-search {
   width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-family: 'DM Sans', sans-serif;
+  height: var(--control-h);
+  padding: 0 10px;
   font-size: 0.82rem;
-  background: #faf8f4;
-  color: var(--ink);
-  transition: border-color 0.15s;
 }
-.sidebar-search:focus { outline: none; border-color: var(--gold); background: var(--white); }
 .sidebar-search::placeholder { color: var(--muted); }
-.client-list { flex: 1; overflow-y: auto; }
+.sidebar-label {
+  font-size: 0.68rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 0.9rem 1rem 0.4rem;
+}
+.client-list { flex: 1; overflow-y: auto; padding: 0 0.5rem 1rem; }
 .client-item {
-  padding: 0.75rem 0.875rem;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 2px;
   cursor: pointer;
-  border-bottom: 1px solid #f3f0eb;
-  transition: background 0.12s;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 6px;
 }
-.client-item:hover { background: #faf8f4; }
-.client-item.active { background: #f5f0e5; border-left: 3px solid var(--gold); padding-left: calc(0.875rem - 3px); }
+.client-item:hover { background: rgba(255,255,255,0.7); }
+.client-item.active {
+  background: var(--white); border-color: var(--border);
+  box-shadow: var(--shadow), inset 3px 0 0 var(--gold);
+}
 .client-item-info { flex: 1; min-width: 0; }
-.client-item-name { font-weight: 500; font-size: 0.84rem; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.client-item-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+.client-item-name { font-weight: 600; font-size: 0.85rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.client-item.active .client-item-name { color: var(--navy); }
+.client-item-meta { font-size: 0.72rem; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
 .client-del {
   opacity: 0;
   background: none;
@@ -707,6 +708,13 @@ tr:hover .rebal-replace-btn { opacity: 1; }
   white-space: nowrap;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Narrow screens: sidebar stacks above the content (after the base .sidebar/.main-layout rules so it wins) */
+@media (max-width: 700px) {
+  .main-layout { flex-direction: column; align-items: stretch; }
+  .sidebar { width: 100%; height: auto; max-height: 220px; position: static; border-right: none; border-bottom: 1px solid var(--border); }
+  .card-head > div { flex-wrap: wrap; }
+}
 </style>
 </head>
 <body>
@@ -724,7 +732,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 <div class="main-layout">
   <div class="sidebar">
     <div class="sidebar-top">
-      <button class="btn-new" onclick="newClient()">+ New Client</button>
+      <button class="btn btn-dark btn-new" onclick="newClient()">+ New Client</button>
       <input class="sidebar-search" placeholder="Search clients…" oninput="debounceSearch(this.value)">
     </div>
     <div class="client-list" id="client-list">
@@ -755,21 +763,21 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Portfolio Proposal</h3>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="addProposalRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          <button class="btn btn-primary" onclick="addProposalRow()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Add Position
           </button>
-          <button class="rebal-ghost-btn" onclick="loadProposalTemplate()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Load Default Template</button>
-          <button class="rebal-ghost-btn" onclick="printProposal()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Generate Proposal</button>
+          <button class="btn btn-secondary" onclick="loadProposalTemplate()">Load Default Template</button>
+          <button class="btn btn-secondary" onclick="printProposal()">Generate Proposal</button>
           <span class="badge">Client-Facing</span>
         </div>
       </div>
       <div class="card-body">
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(180px,240px));gap:1rem;margin-bottom:1rem;">
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(180px,240px));gap:1rem;">
           <div class="field-row"><div class="field-label">Portfolio Value</div><input class="nw-input" type="number" step="1" id="proposal-value" value="0" style="width:100%;text-align:left;" oninput="state.proposal.portfolioValue=+this.value||0;renderProposal();"></div>
         </div>
       </div>
-      <div class="card-body" style="overflow-x:auto;">
+      <div class="card-body" style="overflow-x:auto;padding-top:0;">
         <table id="proposal-table">
           <thead><tr>
             <th>Investment Description</th>
@@ -793,11 +801,11 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Trade Implementation Tracking</h3>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="addImplementationRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          <button class="btn btn-primary" onclick="addImplementationRow()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Add Row
           </button>
-          <button class="rebal-ghost-btn" onclick="syncImplementationFromTargets()" style="border-color:rgba(255,255,255,0.5);color:#fff;">Sync from Proposal</button>
+          <button class="btn btn-secondary" onclick="syncImplementationFromTargets()">Sync from Proposal</button>
           <span class="badge">Internal Use Only</span>
         </div>
       </div>
@@ -876,7 +884,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
             <div class="drop-filename" id="fname-returns"></div>
           </div>
         </div>
-        <button class="btn-build" id="btn-build" onclick="importStatements()" disabled style="margin-top:1rem;">
+        <button class="btn btn-dark" id="btn-build" onclick="importStatements()" disabled style="margin-top:1.25rem;height:38px;padding:0 20px;">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           Import
         </button>
@@ -888,8 +896,8 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Portfolio Holdings</h3>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button class="rebal-ghost-btn" onclick="addHoldingRow()" style="border-color:rgba(255,255,255,0.5);color:#fff;" title="Add a new position">+ Add Holding</button>
-          <button class="rebal-ghost-btn" onclick="addHoldingsToLibrary()" style="border-color:rgba(255,255,255,0.5);color:#fff;" title="Push all holdings into the Settings library for autocomplete">&#8659; Add all to Library</button>
+          <button class="btn btn-secondary" onclick="addHoldingRow()" title="Add a new position">+ Add Holding</button>
+          <button class="btn btn-secondary" onclick="addHoldingsToLibrary()" title="Push all holdings into the Settings library for autocomplete">&#8659; Add all to Library</button>
           <span class="badge" id="holdings-badge">Auto-populated</span>
         </div>
       </div>
@@ -918,7 +926,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Monthly Rate of Return</h3>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="addReturnRow()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          <button class="btn btn-primary" onclick="addReturnRow()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Add Row
           </button>
@@ -993,13 +1001,13 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <h3>Portfolio Rebalancer</h3>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="addRebalPosition()" style="background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          <button class="btn btn-primary" onclick="addRebalPosition()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Add Position
           </button>
-          <button class="rebal-ghost-btn" onclick="resetRebalTargets()">Reset to Current</button>
-          <button class="rebal-ghost-btn" onclick="showTradeList()" style="border-color:rgba(255,255,255,0.5);color:#fff;">&#x2398; Trade Summary</button>
-          <button class="rebal-ghost-btn" onclick="printNewPortfolio()" style="border-color:rgba(255,255,255,0.5);color:#fff;">&#x1F5A8; New Portfolio</button>
+          <button class="btn btn-secondary" onclick="resetRebalTargets()">Reset to Current</button>
+          <button class="btn btn-secondary" onclick="showTradeList()">&#x2398; Trade Summary</button>
+          <button class="btn btn-secondary" onclick="printNewPortfolio()">&#x1F5A8; New Portfolio</button>
           <span class="badge">Internal Use Only</span>
         </div>
       </div>
@@ -1021,7 +1029,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><h3>Internal Notes</h3><button onclick="printInternalNotes()" style="background:var(--gold);color:var(--navy);border:none;border-radius:5px;padding:5px 14px;font-size:0.78rem;font-weight:600;cursor:pointer;">Save as PDF</button></div>
+      <div class="card-head"><h3>Internal Notes</h3><button class="btn btn-primary" onclick="printInternalNotes()">Save as PDF</button></div>
       <div class="card-body">
         <div class="field-label" style="margin-bottom:6px;">Rebalancing notes / rationale</div>
         <textarea class="notes" id="rebal-notes" placeholder="e.g. Trim RBC Core Plus Bond from 11% → 5%, redeploy to US Equity Fund…" oninput="state.rebalanceNotes=this.value" style="min-height:130px;"></textarea>
@@ -1032,7 +1040,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <div>
           <h3>AI Portfolio Assistant</h3>
-          <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">Knows this client's portfolio — ask anything</div>
+          <div class="card-sub">Knows this client's portfolio — ask anything</div>
         </div>
         <span class="badge">Internal Use Only</span>
       </div>
@@ -1056,11 +1064,11 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 
   <!-- EXPORT BAR -->
   <div class="export-bar">
-    <button class="btn-export" onclick="exportExcel()">
+    <button class="btn btn-primary" onclick="exportExcel()">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Push to Excel
     </button>
-    <button class="btn-export" onclick="downloadPDF()" style="background:var(--navy);color:var(--white);margin-left:8px;" id="btn-print">
+    <button class="btn btn-dark" onclick="downloadPDF()" id="btn-print">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Save as PDF
     </button>
@@ -1089,9 +1097,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <div>
           <h3>Holdings Library</h3>
-          <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Pre-load funds so the Advisor Tool autocomplete works even before a client file is imported</div>
+          <div class="card-sub">Pre-load funds so the Advisor Tool autocomplete works even before a client file is imported</div>
         </div>
-        <button class="rebal-ghost-btn" onclick="addLibraryRow()" style="border-color:rgba(255,255,255,0.4);color:#fff;white-space:nowrap;">+ Add Fund</button>
+        <button class="btn btn-secondary" onclick="addLibraryRow()">+ Add Fund</button>
       </div>
       <div class="card-body" style="overflow-x:auto;">
         <table class="settings-table" style="width:100%;">
@@ -1107,9 +1115,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <div>
           <h3>Default Proposal Template</h3>
-          <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Standard starting rows (e.g. Cash) that pre-fill every new client's Proposal tab</div>
+          <div class="card-sub">Standard starting rows (e.g. Cash) that pre-fill every new client's Proposal tab</div>
         </div>
-        <button class="rebal-ghost-btn" onclick="addProposalTemplateRow()" style="border-color:rgba(255,255,255,0.4);color:#fff;white-space:nowrap;">+ Add Row</button>
+        <button class="btn btn-secondary" onclick="addProposalTemplateRow()">+ Add Row</button>
       </div>
       <div class="card-body" style="overflow-x:auto;">
         <table class="settings-table" style="width:100%;">
@@ -1125,9 +1133,9 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-head">
         <div>
           <h3>Product Map</h3>
-          <div style="font-size:0.75rem;color:rgba(255,255,255,0.65);margin-top:2px;">Map fund names to asset classes — any holding whose description contains the product name will be auto-classified</div>
+          <div class="card-sub">Map fund names to asset classes — any holding whose description contains the product name will be auto-classified</div>
         </div>
-        <button class="rebal-ghost-btn" onclick="addProductRow()" style="border-color:rgba(255,255,255,0.4);color:#fff;white-space:nowrap;">+ Add Product</button>
+        <button class="btn btn-secondary" onclick="addProductRow()">+ Add Product</button>
       </div>
       <div class="card-body" style="overflow-x:auto;">
         <table class="settings-table" style="width:100%;">
@@ -1151,7 +1159,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
         <div style="color:var(--gold-light);font-size:0.71rem;margin-top:2px;" id="trade-modal-sub"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button onclick="printTradeList()" style="background:var(--gold);color:var(--navy);border:none;border-radius:5px;padding:5px 14px;font-size:0.78rem;font-weight:600;cursor:pointer;">Print</button>
+        <button class="btn btn-primary" onclick="printTradeList()">Print</button>
         <button onclick="closeTradeList()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.1rem;cursor:pointer;padding:2px 6px;line-height:1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">&times;</button>
       </div>
     </div>
@@ -1175,7 +1183,7 @@ tr:hover .rebal-replace-btn { opacity: 1; }
         <div class="field-label">Portfolio value</div>
         <input type="number" step="1" class="nw-input" id="new-client-value" placeholder="e.g. 325000" style="width:100%;text-align:left;" onkeydown="if(event.key==='Enter')submitNewClient();">
       </div>
-      <button onclick="submitNewClient()" style="margin-top:20px;width:100%;background:var(--gold);color:var(--navy);border:none;border-radius:6px;padding:10px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;">Start Proposal</button>
+      <button class="btn btn-primary" onclick="submitNewClient()" style="margin-top:20px;width:100%;height:40px;">Start Proposal</button>
     </div>
   </div>
 </div>
@@ -1780,9 +1788,9 @@ function renderNWGrid(containerId, data, label) {
       d.className = 'nw-row';
       if (col === 'name') {
         d.textContent = name;
-        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid #f3f0eb;display:flex;align-items:center;font-size:0.82rem;';
+        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-size:0.82rem;';
       } else if (col === 'total') {
-        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid #f3f0eb;display:flex;align-items:center;justify-content:flex-end;font-size:0.82rem;font-weight:500;';
+        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;font-size:0.82rem;font-weight:500;';
         d.id = containerId + '-total-' + ri;
       } else {
         const inp = document.createElement('input');
@@ -1796,7 +1804,7 @@ function renderNWGrid(containerId, data, label) {
           data[name][col] = parseFloat(inp.value) || 0;
           recalcNW();
         });
-        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid #f3f0eb;display:flex;align-items:center;justify-content:flex-end;';
+        d.style.cssText = 'padding:5px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;';
         d.appendChild(inp);
       }
       container.appendChild(d);
@@ -1840,7 +1848,7 @@ function recalcNW() {
       [row.label, fmt$(row.a), fmt$(row.b), fmt$(row.j), fmt$(tot)].forEach((v, i) => {
         const d = document.createElement('div');
         d.className = 'nw-row ' + row.cls;
-        d.style.cssText = 'padding:7px 10px;display:flex;align-items:center;' + (i > 0 ? 'justify-content:flex-end;' : '') + (row.cls === 'net-worth' ? 'font-weight:600;font-size:0.9rem;background:var(--navy);color:var(--white);border-bottom:none;' : 'font-weight:600;background:#f8f5f0;border-top:1.5px solid var(--border);border-bottom:none;');
+        d.style.cssText = 'padding:7px 10px;display:flex;align-items:center;' + (i > 0 ? 'justify-content:flex-end;' : '') + (row.cls === 'net-worth' ? 'font-weight:700;font-size:0.9rem;background:var(--slate);color:var(--white);border-bottom:none;' : 'font-weight:600;background:#f8f5f0;border-top:1.5px solid var(--border);border-bottom:none;');
         d.textContent = v;
         sg.appendChild(d);
       });
