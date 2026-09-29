@@ -862,10 +862,10 @@ tr:hover .rebal-replace-btn { opacity: 1; }
       <div class="card-body">
         <div class="upload-grid" style="max-width:600px;">
           <div class="drop-zone" id="dz-holdings" ondragover="dzOver(event,'dz-holdings')" ondragleave="dzLeave('dz-holdings')" ondrop="dzDrop(event,'holdings')">
-            <input type="file" accept=".xlsx,.xls" onchange="fileSelected(this,'holdings')">
+            <input type="file" accept=".pdf,.xlsx,.xls" onchange="fileSelected(this,'holdings')">
             <div class="drop-icon" id="icon-holdings">📊</div>
             <div class="drop-label">Holdings file</div>
-            <div class="drop-hint">e.g. ClientName_Holdings.xlsx</div>
+            <div class="drop-hint">Position Report PDF or Excel</div>
             <div class="drop-filename" id="fname-holdings"></div>
           </div>
           <div class="drop-zone" id="dz-returns" ondragover="dzOver(event,'dz-returns')" ondragleave="dzLeave('dz-returns')" ondrop="dzDrop(event,'returns')">
@@ -1257,7 +1257,8 @@ async function importStatements() {
     if (state.files.holdings) await parseHoldings(state.files.holdings);
     if (state.files.returns)  await parseReturns(state.files.returns);
     renderAll();
-    if (statusEl) statusEl.textContent = 'Imported ✓';
+    const warning = state.files.holdings && state.rawImport?.holdings?.warning;
+    if (statusEl) statusEl.textContent = warning ? '⚠ Imported, but check holdings: ' + warning : 'Imported ✓';
     runImportReview();
   } catch(err) {
     if (statusEl) statusEl.textContent = '⚠ Error: ' + err.message;
@@ -1340,6 +1341,14 @@ function getAssetClass(symbol, desc) {
 }
 
 async function parseHoldings(file) {
+  if (file.name.toLowerCase().endsWith('.pdf')) {
+    await parseHoldingsPDF(file);
+  } else {
+    await parseHoldingsXLSX(file);
+  }
+}
+
+async function parseHoldingsXLSX(file) {
   const buf = file.buffer || await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
 
@@ -1359,8 +1368,7 @@ async function parseHoldings(file) {
   }
 
   if (headerRow === -1) {
-    state.holdings = getDefaultHoldings();
-    return;
+    throw new Error(`Couldn't find a holdings table in ${file.name}`);
   }
 
   const _importLog = { filename: file.name, importedAt: new Date().toISOString(), skipped: [] };
@@ -1461,23 +1469,145 @@ async function parseHoldings(file) {
   state.rawImport = state.rawImport || {};
   state.rawImport.holdings = _importLog;
 
-  state.holdings = holdings.length > 0 ? holdings : getDefaultHoldings();
+  if (holdings.length === 0) throw new Error(`No holdings found in ${file.name}`);
+  state.holdings = holdings;
 }
 
-function getDefaultHoldings() {
-  return [
-    { desc: 'Canadian Cash Balance',        symbol: '—',       cat: 'Cash', assetClass: 'Cash',                        qty: null,     price: null,    book: 1606.24,  mv: 1606.24,  gl: 0,       glpct: 0,      income: null },
-    { desc: 'Fidelity Global Innovators Cl F', symbol: 'FID5982', cat: 'Intl', assetClass: 'Global Equity Fund',        qty: 344.37,   price: 51.80,   book: 18268.39, mv: 17838.78, gl: 338.78,  glpct: 0.019,  income: null },
-    { desc: 'Beutel Goodman American Eqty F',  symbol: 'BTG105',  cat: 'US',   assetClass: 'US Equity Fund',            qty: 720.53,   price: 20.42,   book: 14330.93, mv: 14716.35, gl: 716.35,  glpct: 0.05,   income: null },
-    { desc: 'Mackenzie Emerging Markets F NL', symbol: 'MFC5505', cat: 'Intl', assetClass: 'International Equity Fund', qty: 459.95,   price: 17.34,   book: 7474.30,  mv: 7975.75,  gl: 975.75,  glpct: 0.131,  income: null },
-    { desc: 'Beutel Goodman Canadian Eqty F',  symbol: 'BTG100',  cat: 'CAD',  assetClass: 'Canadian Equity Fund',      qty: 149.82,   price: 50.75,   book: 7446.58,  mv: 7603.85,  gl: 642.12,  glpct: 0.086,  income: null },
-    { desc: 'Fidelity Tactical High Income F', symbol: 'FID2456', cat: 'Alt',  assetClass: 'Tactical Income Fund',      qty: 414.82,   price: 17.08,   book: 7385.80,  mv: 7085.15,  gl: 85.15,   glpct: 0.012,  income: null },
-    { desc: 'BNS CCC NT LNK AMZN INC S1F',    symbol: 'SSP6737', cat: 'PPN',  assetClass: '',                          qty: 70,       price: 91.54,   book: 7000,     mv: 6407.80,  gl: -412.65, glpct: -0.059, income: null },
-    { desc: 'Fidelity AsiaStar Fund F',        symbol: 'FID1608', cat: 'Intl', assetClass: 'International Equity Fund', qty: 77.65,    price: 52.23,   book: 3526.31,  mv: 4055.26,  gl: 555.26,  glpct: 0.157,  income: null },
-    { desc: 'Picton Mkt Neutral Alt Fund F',   symbol: 'PIC3101', cat: 'Alt',  assetClass: 'Alternative / Market Neutral', qty: 241.10, price: 16.76, book: 4031.81,  mv: 4041.89,  gl: 41.89,   glpct: 0.010,  income: null },
-    { desc: 'Fidelity Global Small Cap Opp F', symbol: 'FID7680', cat: 'US',   assetClass: 'Global Small Cap Fund',     qty: 203.43,   price: 19.10,   book: 3634.49,  mv: 3884.45,  gl: 384.45,  glpct: 0.106,  income: null },
-    { desc: 'TD Alt Commodities Pool F',       symbol: 'TDB2451', cat: 'Alt',  assetClass: 'Alternative / Commodities', qty: 208.09,   price: 11.53,   book: 2283.54,  mv: 2399.30,  gl: 299.30,  glpct: 0.131,  income: null },
-  ];
+// ── PARSE HOLDINGS (PDF Position Report) ──
+// Numbers in the Position Report are right-aligned under their column heading, so each
+// value is assigned to the heading whose right edge is closest to the value's right edge.
+function findPositionReportColumns(items) {
+  const position = items.find(it => it.str === 'Position');
+  const symbol = items.find(it => /^Symbol/.test(it.str));
+  const market = items.find(it => it.str === 'Market');
+  if (!position || !symbol || !market) return null;
+
+  // Headings stack up to ~19pt above/below "Position"; the first table row sits ~30pt below it.
+  const head = items.filter(it => Math.abs(it.y - position.y) < 24);
+  const edge = re => { const it = head.find(h => re.test(h.str)); return it ? it.right : null; };
+  // "Positions" appears under both income headings: first is current, second is YTD.
+  const incomeCols = head.filter(h => h.str === 'Positions').sort((a, b) => a.x - b.x);
+
+  const numeric = {
+    qty:    edge(/^Quantity$/),
+    price:  edge(/^Price$/),
+    book:   edge(/^Book$/),
+    income: incomeCols[0] ? incomeCols[0].right : null,
+    mv:     market.right,
+    gl:     edge(/^G\/L \(\$\)/),
+    glpct:  edge(/^\(%\)/),
+    incomeYtd: incomeCols[1] ? incomeCols[1].right : null,
+    accrued: edge(/^Interest$/),
+  };
+  return {
+    descX: position.x,
+    symbolX: symbol.x,
+    headerBottom: Math.min(...head.map(h => h.y)),
+    numeric: Object.entries(numeric).filter(([, r]) => r != null),
+  };
+}
+
+async function parseHoldingsPDF(file) {
+  const buf = file.buffer || await file.arrayBuffer();
+  // pdf.js takes ownership of the buffer it's handed — pass a copy so the file can be re-imported.
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
+
+  const isNum = s => /^-?[\d,]+(\.\d+)?%?$/.test(s);
+  const toNum = s => {
+    const n = parseFloat(s.replace(/[,%]/g, ''));
+    return s.endsWith('%') ? n / 100 : n;
+  };
+
+  const _importLog = { filename: file.name, importedAt: new Date().toISOString(), skipped: [] };
+  const holdings = [];
+  let cols = null;
+  let reportedTotal = null;
+
+  for (let p = 1; p <= pdf.numPages && reportedTotal == null; p++) {
+    const page = await pdf.getPage(p);
+    const items = (await page.getTextContent()).items
+      .filter(it => it.str.trim())
+      .map(it => ({ str: it.str.trim(), x: it.transform[4], y: it.transform[5], right: it.transform[4] + it.width }));
+
+    const pageCols = findPositionReportColumns(items);
+    if (pageCols) cols = pageCols;
+    if (!cols) continue;
+    const body = pageCols ? items.filter(it => it.y < pageCols.headerBottom - 2) : items;
+
+    // Each table row starts with its "% of Total" figure (or "Totals") in the far-left column.
+    // Everything else on the page is attached to the nearest such row, which also rejoins
+    // security names that wrap onto a second line.
+    const rows = body
+      .filter(it => it.x < cols.descX - 5 && (/^[\d.]+%$/.test(it.str) || /^totals/i.test(it.str)))
+      .map(anchor => ({ y: anchor.y, descParts: /^totals/i.test(anchor.str) ? [anchor] : [], symbol: '', nums: {} }));
+    if (!rows.length) continue;
+
+    for (const it of body) {
+      if (it.x < cols.descX - 5) continue;
+      const row = rows.reduce((best, r) => Math.abs(r.y - it.y) < Math.abs(best.y - it.y) ? r : best);
+      if (Math.abs(row.y - it.y) > 9) continue;
+
+      if (it.x < cols.symbolX - 5) {
+        row.descParts.push(it);
+      } else if (!isNum(it.str) || Math.abs(it.x - cols.symbolX) < 3) {
+        row.symbol = it.str;
+      } else {
+        const [key, right] = cols.numeric.reduce((best, c) => Math.abs(c[1] - it.right) < Math.abs(best[1] - it.right) ? c : best);
+        if (Math.abs(right - it.right) < 12) row.nums[key] = toNum(it.str);
+      }
+    }
+
+    rows.sort((a, b) => b.y - a.y);
+    for (const row of rows) {
+      const desc = row.descParts
+        .sort((a, b) => b.y - a.y || a.x - b.x)
+        .map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
+      const d = desc.toLowerCase();
+      const n = row.nums;
+
+      if (d.startsWith('totals')) { reportedTotal = n.mv ?? null; break; }
+      // Asset-class group rows ("Mutual funds", "Canadian stocks", "Cash balance") carry only subtotals.
+      if (d === 'cash balance' || (!row.symbol && n.qty == null && n.price == null && !d.includes('cash'))) {
+        _importLog.skipped.push({ desc, reason: 'section header row' });
+        continue;
+      }
+      if (!n.mv && !d.includes('cash')) {
+        _importLog.skipped.push({ desc, reason: 'zero market value' });
+        continue;
+      }
+
+      const sym = row.symbol || '—';
+      holdings.push({
+        desc,
+        symbol: sym,
+        cat: '',
+        assetClass: getAssetClass(sym, desc),
+        qty: n.qty ?? null,
+        price: n.price ?? null,
+        book: n.book || 0,
+        mv: n.mv || 0,
+        gl: n.gl || 0,
+        glpct: n.glpct || 0,
+        income: n.income ?? null,
+      });
+    }
+  }
+
+  if (holdings.length === 0) throw new Error(`No holdings found in ${file.name} — is it a Position Report?`);
+
+  const importedTotal = Math.round(holdings.reduce((s, h) => s + h.mv, 0) * 100) / 100;
+  _importLog.importedCount = holdings.length;
+  _importLog.importedTotal = importedTotal;
+  _importLog.reportedTotal = reportedTotal;
+  if (reportedTotal == null) {
+    _importLog.warning = 'No Totals row found in the report — could not verify the imported market value.';
+  } else if (Math.abs(importedTotal - reportedTotal) > 0.05) {
+    _importLog.warning = `Imported holdings total $${importedTotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })} but the report total is $${reportedTotal.toLocaleString('en-CA', { minimumFractionDigits: 2 })}.`;
+  }
+
+  state.rawImport = state.rawImport || {};
+  state.rawImport.holdings = _importLog;
+  state.holdings = holdings;
 }
 
 // ── PARSE RETURNS ──
