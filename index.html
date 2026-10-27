@@ -1338,28 +1338,52 @@ function submitNewClient() {
   switchTab(0);
 }
 
+// ── FUND INDEX ──
+// Funds and ETFs used in client reviews (from the Fund & ETF Guide, Oct 2026). Drives asset-class
+// tagging on import, the fund-name autocomplete, and the codes shown on the trade list.
+const FUND_INDEX = [
+  { code: 'EVF201',  name: 'Evolve High Interest Savings Account Fund F',            assetClass: 'Savings / HISA' },
+  { code: 'RBF1691', name: 'RBC Core Plus Bond Pool F',                              assetClass: 'Bond Fund' },
+  { code: 'PIC8521', name: 'Picton Core Bond Fund F',                                assetClass: 'Corporate Bond Fund' },
+  { code: 'TML2064', name: 'Franklin Bissett Corporate Bond Fund F',                 assetClass: 'Corporate Bond Fund' },
+  { code: 'MFC4713', name: 'Mackenzie Global Tactical Bond Fund F',                  assetClass: 'Global Bond Fund' },
+  { code: 'FID2456', name: 'Fidelity Tactical High Income Fund F',                   assetClass: 'Tactical Income Fund' },
+  { code: 'BTG100',  name: 'Beutel Goodman Canadian Equity Fund F',                  assetClass: 'Canadian Equity Fund' },
+  { code: 'BTG104',  name: 'Beutel Goodman Small Cap Fund F',                        assetClass: 'Canadian Equity Fund' },
+  { code: 'BTG102',  name: 'Beutel Goodman North American Focused Equity Fund F',    assetClass: 'Canadian Equity Fund' },
+  { code: 'XIC',     name: 'iShares Core S&P/TSX Capped Composite ETF',              assetClass: 'Canadian Equity Fund' },
+  { code: 'BTG105',  name: 'Beutel Goodman American Equity Fund F',                  assetClass: 'US Equity Fund' },
+  { code: 'RSP',     name: 'Invesco S&P 500 Equal Weight ETF',                       assetClass: 'US Equity Fund' },
+  { code: 'FID5982', name: 'Fidelity Global Innovators Class F',                     assetClass: 'Global Equity Fund' },
+  { code: 'FINN',    name: 'Fidelity Global Innovators ETF',                         assetClass: 'Global Equity Fund' },
+  { code: 'TDB3455', name: '',                                                       assetClass: 'Global Equity Fund' },
+  { code: 'FID1608', name: 'Fidelity AsiaStar Fund F',                               assetClass: 'International Equity Fund' },
+  { code: 'MFC5505', name: 'Mackenzie GQE Emerging Markets Fund F',                  assetClass: 'International Equity Fund' },
+  { code: 'MFC096',  name: 'Mackenzie Ivy International Fund F',                     assetClass: 'International Equity Fund' },
+  { code: 'VIU',     name: 'Vanguard FTSE Developed All Cap ex North America ETF',   assetClass: 'International Equity Fund' },
+  { code: 'FCIV',    name: 'Fidelity International Value ETF',                       assetClass: 'International Equity Fund' },
+  { code: 'FID7680', name: 'Fidelity Global Small Cap Opportunities Fund F',         assetClass: 'Global Small Cap Fund' },
+  { code: 'PIC3101', name: 'Picton Market Neutral Equity Alternative Fund F',        assetClass: 'Alternative / Market Neutral' },
+  { code: 'TDB2451', name: 'TD Alternative Commodities Pool F',                      assetClass: 'Alternative / Commodities' },
+  { code: 'COP.UN',  name: 'Sprott Physical Copper Trust',                           assetClass: 'Alternative / Commodities' },
+];
+
+// Finds a fund's code from its name, for positions typed in by hand without a symbol.
+function lookupFundCode(desc) {
+  const d = (desc || '').trim().toLowerCase();
+  if (!d) return '';
+  const fund = FUND_INDEX.find(f => f.code.toLowerCase() === d || (f.name && f.name.toLowerCase() === d))
+    || (d.length >= 6 && FUND_INDEX.find(f => f.name && (f.name.toLowerCase().includes(d) || d.includes(f.name.toLowerCase().replace(/ (f|etf)$/, '')))));
+  return fund ? fund.code : '';
+}
+
 // ── PARSE HOLDINGS (XLSX) ──
 function getAssetClass(symbol, desc) {
   const d_lower = (desc || '').toLowerCase();
   const mapped = (state.settings?.productMap || []).find(p => p.name && p.assetClass && d_lower.includes(p.name.toLowerCase()));
   if (mapped) return mapped.assetClass;
-  const symbolMap = {
-    'EVF201':  'Savings / HISA',
-    'RBF1691': 'Bond Fund',
-    'FID5982': 'Global Equity Fund',
-    'BTG105':  'US Equity Fund',
-    'FID7680': 'Global Small Cap Fund',
-    'MFC096':  'International Equity Fund',
-    'FID2456': 'Tactical Income Fund',
-    'BTG100':  'Canadian Equity Fund',
-    'BTG104':  'Canadian Equity Fund',
-    'TML2064': 'Corporate Bond Fund',
-    'MFC4713': 'Global Bond Fund',
-    'PIC3101': 'Alternative / Market Neutral',
-    'TDB2451': 'Alternative / Commodities',
-    'TDB3455': 'Global Equity Fund',
-  };
-  if (symbolMap[symbol]) return symbolMap[symbol];
+  const indexed = FUND_INDEX.find(f => f.code === symbol);
+  if (indexed) return indexed.assetClass;
   const d = (desc || '').toLowerCase();
   if (d.includes('cash balance')) return 'Cash';
   if (d.includes('high interest savings') || d.includes('hisa')) return 'Savings / HISA';
@@ -2665,17 +2689,18 @@ function handleRebalDescInput(input, idx) {
   const clientHoldings = (state.holdings || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass || getAssetClass(h.symbol, h.desc) }));
   const library = (state.settings.holdingsLibrary || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass }));
   const template = (state.settings.proposalTemplate || []).map(r => ({ desc: r.desc, symbol: r.symbol, assetClass: [r.section, r.region].filter(Boolean).join(' - ') }));
+  const index = FUND_INDEX.map(f => ({ desc: f.name, symbol: f.code, assetClass: f.assetClass }));
   const seen = new Set();
-  const pool = [...clientHoldings, ...library, ...template].filter(h => {
+  const pool = [...clientHoldings, ...library, ...template, ...index].filter(h => {
     if (!h.desc || seen.has(h.desc.toLowerCase())) return false;
     seen.add(h.desc.toLowerCase());
     return true;
   });
-  const matches = pool.filter(h => h.desc.toLowerCase().includes(q)).slice(0, 8);
+  const matches = pool.filter(h => h.desc.toLowerCase().includes(q) || (h.symbol || '').toLowerCase().startsWith(q)).slice(0, 8);
   if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
   list.innerHTML = matches.map(h =>
     `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-symbol="${escHtml(h.symbol||'')}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
-      onmousedown="selectRebalAutocomplete(event,${idx})">${escHtml(h.desc)}</div>`
+      onmousedown="selectRebalAutocomplete(event,${idx})">${h.symbol && h.symbol !== '—' ? `<strong>${escHtml(h.symbol)}</strong> · ` : ''}${escHtml(h.desc)}</div>`
   ).join('');
   list.classList.add('open');
 }
@@ -2793,7 +2818,7 @@ function computeAccountPlan() {
     if (Math.abs(diff) < THRESHOLD) return;
     const chosen = findAccount((state.holdingAccounts || {})[holdingAcctKey(row)]);
     trades.push({ ref: 'h:' + key, side: diff < 0 ? 'sell' : 'buy', isCash: isCashRow(row), isNew: false,
-      desc: row.desc, currentPct, targetPct, diff, dollars: Math.abs(diff / 100 * totalMV),
+      desc: row.desc, code: row.symbol && row.symbol !== '—' ? row.symbol : lookupFundCode(row.desc), currentPct, targetPct, diff, dollars: Math.abs(diff / 100 * totalMV),
       note: (state.rebalanceRowNotes || {})[key] || '', accountId: chosen ? chosen.id : null, auto: false });
   });
 
@@ -2801,7 +2826,7 @@ function computeAccountPlan() {
     if (!pos.desc || pos.targetPct <= 0) return;
     const chosen = findAccount(pos.account);
     trades.push({ ref: 'n:' + i, side: 'buy', isCash: false, isNew: true,
-      desc: pos.desc, currentPct: null, targetPct: pos.targetPct, diff: pos.targetPct, dollars: pos.targetPct / 100 * totalMV,
+      desc: pos.desc, code: pos.symbol || lookupFundCode(pos.desc), currentPct: null, targetPct: pos.targetPct, diff: pos.targetPct, dollars: pos.targetPct / 100 * totalMV,
       note: pos.note || '', accountId: chosen ? chosen.id : null, auto: false });
   });
 
@@ -2941,12 +2966,12 @@ function showTradeList() {
     clientName + (reviewDate ? ' · ' + reviewDate : '') +
     ' · ' + trades.length + ' trade' + (trades.length !== 1 ? 's' : '');
 
-  function tradeRow(label, color, desc, from, to, dollars, note) {
+  function tradeRow(label, color, code, desc, from, to, dollars, note) {
     return `
       <div style="display:flex;align-items:flex-start;gap:14px;padding:11px 0;border-bottom:1px solid #f0ede8;">
         <div style="flex-shrink:0;width:46px;text-align:center;padding:3px 0;border-radius:4px;background:${color}15;color:${color};font-size:0.68rem;font-weight:700;letter-spacing:0.06em;">${label}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:0.84rem;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(desc)}</div>
+          <div style="font-size:0.84rem;font-weight:600;color:#0f1f3d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${code ? `<span style="font-family:Consolas,monospace;font-weight:700;margin-right:8px;">${escHtml(code)}</span>` : ''}${escHtml(desc)}</div>
           ${from !== null ? `<div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">${from.toFixed(1)}% → ${to.toFixed(1)}%</div>` : `<div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">New position at ${to.toFixed(1)}%</div>`}
           ${note ? `<div style="font-size:0.74rem;color:#6b7280;margin-top:3px;font-style:italic;">${escHtml(note)}</div>` : ''}
         </div>
@@ -2959,8 +2984,8 @@ function showTradeList() {
   const sectionLabel = (text, first) =>
     `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin:${first ? '0' : '18px'} 0 4px;">${text}</div>`;
   const entryRow = e => e.side === 'sell'
-    ? tradeRow('SELL', '#dc2626', e.desc, e.currentPct, e.targetPct, e.dollars, e.note)
-    : tradeRow('BUY', '#16a34a', e.desc, e.isNew ? null : e.currentPct, e.targetPct, e.dollars, e.note);
+    ? tradeRow('SELL', '#dc2626', e.code, e.desc, e.currentPct, e.targetPct, e.dollars, e.note)
+    : tradeRow('BUY', '#16a34a', e.code, e.desc, e.isNew ? null : e.currentPct, e.targetPct, e.dollars, e.note);
 
   if (!trades.length) {
     html = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:0.85rem;">No changes — all targets match current allocations.</div>';
@@ -3157,17 +3182,18 @@ function handleImplDescInput(input, idx) {
   if (!q) { list.classList.remove('open'); list.innerHTML = ''; return; }
   const clientHoldings = (state.holdings || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass || getAssetClass(h.symbol, h.desc) }));
   const library = (state.settings.holdingsLibrary || []).map(h => ({ desc: h.desc, symbol: h.symbol, assetClass: h.assetClass }));
+  const index = FUND_INDEX.map(f => ({ desc: f.name, symbol: f.code, assetClass: f.assetClass }));
   const seen = new Set();
-  const pool = [...clientHoldings, ...library].filter(h => {
+  const pool = [...clientHoldings, ...library, ...index].filter(h => {
     if (!h.desc || seen.has(h.desc.toLowerCase())) return false;
     seen.add(h.desc.toLowerCase());
     return true;
   });
-  const matches = pool.filter(h => h.desc.toLowerCase().includes(q)).slice(0, 8);
+  const matches = pool.filter(h => h.desc.toLowerCase().includes(q) || (h.symbol || '').toLowerCase().startsWith(q)).slice(0, 8);
   if (!matches.length) { list.classList.remove('open'); list.innerHTML = ''; return; }
   list.innerHTML = matches.map(h =>
     `<div class="rebal-autocomplete-item" data-desc="${escHtml(h.desc)}" data-symbol="${escHtml(h.symbol||'')}" data-ac="${escHtml(h.assetClass||getAssetClass(h.symbol,h.desc)||'')}"
-      onmousedown="selectImplAutocomplete(event,${idx})">${escHtml(h.desc)}</div>`
+      onmousedown="selectImplAutocomplete(event,${idx})">${h.symbol && h.symbol !== '—' ? `<strong>${escHtml(h.symbol)}</strong> · ` : ''}${escHtml(h.desc)}</div>`
   ).join('');
   list.classList.add('open');
 }
