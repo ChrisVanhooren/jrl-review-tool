@@ -442,6 +442,21 @@ tr:hover .rebal-del { opacity: 1; }
 tr:hover .rebal-replace-btn { opacity: 1; }
 .rebal-replace-btn:hover { border-color: var(--gold); color: var(--navy); }
 
+/* ── ACCOUNTS ── */
+.acct-list { display: flex; flex-wrap: wrap; gap: 12px; }
+.acct-chip {
+  position: relative; min-width: 200px; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
+}
+.acct-chip.short { border-color: var(--danger); }
+.acct-chip .acct-name { font-weight: 600; color: var(--navy); font-size: 0.88rem; margin-bottom: 6px; width: 140px; }
+.acct-chip .acct-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+.acct-chip .acct-line strong { font-variant-numeric: tabular-nums; }
+.acct-chip .rebal-del { position: absolute; top: 6px; right: 8px; }
+.acct-chip:hover .rebal-del { opacity: 1; }
+.acct-warn { margin-top: 10px; font-size: 0.78rem; color: #b45309; }
+.acct-select.needs-acct { border-color: var(--danger); color: var(--danger); }
+
 /* ── AI CHAT ── */
 .ai-chat-wrap { display: flex; flex-direction: column; gap: 0; height: 420px; }
 .ai-messages {
@@ -999,6 +1014,16 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
     <div class="stats-row" id="rebal-stats"></div>
     <div class="card">
       <div class="card-head">
+        <div>
+          <h3>Accounts</h3>
+          <div class="card-sub">Position reports don't say which account holds what — tag each fund below once and it's remembered</div>
+        </div>
+        <button class="btn btn-secondary" onclick="addAccount()">+ Add Account</button>
+      </div>
+      <div class="card-body" id="acct-body" style="display:none;"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
         <h3>Portfolio Rebalancer</h3>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-primary" onclick="addRebalPosition()">
@@ -1021,6 +1046,7 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
             <th class="r">Target %</th>
             <th class="r">Difference</th>
             <th class="r">To Buy / Sell</th>
+            <th id="rebal-acct-th" style="display:none;" title="Which account this fund is held in / this trade happens in">Account</th>
             <th title="Fund a new position by reducing the client's cash target %">Cash</th>
             <th>Advisor Notes</th>
           </tr></thead>
@@ -1216,6 +1242,8 @@ const state = {
   rebalanceNew: [],
   rebalanceNotes: '',
   rebalanceRowNotes: {},
+  accounts: [],
+  holdingAccounts: {},
   rawImport: null,
   settings: { productMap: [], holdingsLibrary: [], proposalTemplate: [] },
   proposal: { portfolioValue: 0, targets: [] },
@@ -2193,12 +2221,15 @@ function renderAdvisor() {
   if (!h || !h.length) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem;">Load a portfolio to use the rebalancer.</td></tr>';
     document.getElementById('rebal-stats').innerHTML = '';
+    renderAccounts();
     return;
   }
 
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
   tbody.innerHTML = '';
   let totalTargetPct = 0;
+  const hasAccounts = (state.accounts || []).length > 0;
+  document.getElementById('rebal-acct-th').style.display = hasAccounts ? '' : 'none';
 
   h.forEach((row, i) => {
     const key = row.desc + '|' + row.symbol;
@@ -2222,6 +2253,7 @@ function renderAdvisor() {
       </td>
       <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
       <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}&nbsp;<button class="rebal-replace-btn" onclick="replaceHolding('${escHtml(key)}','${escHtml(assetClass)}')" title="Zero this out and add a replacement">Replace →</button></td>
+      ${hasAccounts ? `<td>${isCashRow(row) ? '' : accountSelectHtml('h:' + key, (state.holdingAccounts || {})[holdingAcctKey(row)], `setHoldingAccount(${i},this.value)`)}</td>` : ''}
       <td></td>
       <td><input class="rebal-new-input" type="text" placeholder="e.g. Trimming — overvalued vs sector peers" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes['${escHtml(key)}']=this.value" style="width:260px;"></td>
     `;
@@ -2265,6 +2297,7 @@ function renderAdvisor() {
         </td>
         <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
         <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
+        ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
         <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
         <td><input class="rebal-new-input" type="text" placeholder="e.g. Adding growth exposure — replacing MCD" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value" style="width:260px;"></td>
       `;
@@ -2519,6 +2552,7 @@ function updateRebalStats(totalMV, totalTargetPct) {
     totalCell.textContent = totalTargetPct.toFixed(2) + '%';
     totalCell.style.color = Math.abs(totalTargetPct - 100) < 0.05 ? 'var(--success)' : totalTargetPct > 100 ? 'var(--danger)' : '#b45309';
   }
+  renderAccounts();
 }
 
 function handleRebalInput(input) {
@@ -2719,12 +2753,37 @@ function resetRebalTargets() {
   renderAdvisor();
 }
 
-function showTradeList() {
+// ── ACCOUNTS ──
+// Position reports are consolidated across a client's accounts, so which account (TFSA, RRSP,
+// Corp…) holds each fund is tagged on the Advisor Tool and remembered per client in
+// state.holdingAccounts, keyed by symbol so the tags survive the next import.
+const ACCOUNT_NAME_SUGGESTIONS = ['TFSA', 'RRSP', 'Non-Reg', 'Corp', 'RESP', 'LIRA', 'RRIF'];
+
+function isCashRow(row) {
+  return row.assetClass === 'Cash' || /cash/i.test(row.desc || '');
+}
+
+function holdingAcctKey(row) {
+  return row.symbol && row.symbol !== '—' ? row.symbol : row.desc;
+}
+
+function findAccount(id) {
+  return (state.accounts || []).find(a => a.id === id) || null;
+}
+
+function reportCashTotal() {
+  return (state.holdings || []).filter(isCashRow).reduce((s, r) => s + (r.mv || 0), 0);
+}
+
+// Every trade the rebalancer implies, each placed in an account with a running cash balance per
+// account. Sells land first so their proceeds can fund buys; a buy with no account chosen goes to
+// whichever account has the most cash left (marked auto so the advisor can flip it).
+function computeAccountPlan() {
+  const accounts = state.accounts || [];
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
   const THRESHOLD = 0.05; // ignore changes under 0.05%
-
-  const sells = [], buys = [], newPos = [];
+  const trades = [];
 
   h.forEach(row => {
     const key = row.desc + '|' + row.symbol;
@@ -2732,18 +2791,146 @@ function showTradeList() {
     const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
     const diff = targetPct - currentPct;
     if (Math.abs(diff) < THRESHOLD) return;
-    const dollars = diff / 100 * totalMV;
-    const note = (state.rebalanceRowNotes || {})[key] || '';
-    const entry = { desc: row.desc, currentPct, targetPct, diff, dollars, note };
-    if (diff < 0) sells.push(entry);
-    else buys.push(entry);
+    const chosen = findAccount((state.holdingAccounts || {})[holdingAcctKey(row)]);
+    trades.push({ ref: 'h:' + key, side: diff < 0 ? 'sell' : 'buy', isCash: isCashRow(row), isNew: false,
+      desc: row.desc, currentPct, targetPct, diff, dollars: Math.abs(diff / 100 * totalMV),
+      note: (state.rebalanceRowNotes || {})[key] || '', accountId: chosen ? chosen.id : null, auto: false });
   });
 
-  (state.rebalanceNew || []).forEach(pos => {
+  (state.rebalanceNew || []).forEach((pos, i) => {
     if (!pos.desc || pos.targetPct <= 0) return;
-    const dollars = pos.targetPct / 100 * totalMV;
-    newPos.push({ desc: pos.desc, assetClass: pos.assetClass, targetPct: pos.targetPct, dollars, note: pos.note || '' });
+    const chosen = findAccount(pos.account);
+    trades.push({ ref: 'n:' + i, side: 'buy', isCash: false, isNew: true,
+      desc: pos.desc, currentPct: null, targetPct: pos.targetPct, diff: pos.targetPct, dollars: pos.targetPct / 100 * totalMV,
+      note: pos.note || '', accountId: chosen ? chosen.id : null, auto: false });
   });
+
+  const balances = {};
+  accounts.forEach(a => { balances[a.id] = { start: a.cash || 0, end: a.cash || 0 }; });
+  const placed = trades.filter(t => !t.isCash);
+  placed.forEach(t => {
+    if (t.accountId) balances[t.accountId].end += t.side === 'sell' ? t.dollars : -t.dollars;
+  });
+  placed.filter(t => t.side === 'buy' && !t.accountId)
+    .sort((a, b) => b.dollars - a.dollars)
+    .forEach(t => {
+      const best = accounts.reduce((b, a) => !b || balances[a.id].end > balances[b.id].end ? a : b, null);
+      if (!best) return;
+      t.accountId = best.id;
+      t.auto = true;
+      balances[best.id].end -= t.dollars;
+    });
+
+  return { trades, balances, byRef: new Map(trades.map(t => [t.ref, t])) };
+}
+
+function accountSelectHtml(ref, chosenId, onchange) {
+  const chosen = findAccount(chosenId);
+  return `<select class="ac-select acct-select" data-acct-ref="${escHtml(ref)}" onchange="${onchange}">
+    <option value="">—</option>
+    ${(state.accounts || []).map(a => `<option value="${escHtml(a.id)}"${chosen && chosen.id === a.id ? ' selected' : ''}>${escHtml(a.name)}</option>`).join('')}
+  </select>`;
+}
+
+function renderAccounts() {
+  const body = document.getElementById('acct-body');
+  if (!body) return;
+  const accounts = state.accounts || [];
+  if (!accounts.length) { body.style.display = 'none'; body.innerHTML = ''; return; }
+
+  const plan = computeAccountPlan();
+  const chips = accounts.map((a, i) => {
+    const b = plan.balances[a.id];
+    return `
+      <div class="acct-chip${b.end < -0.5 ? ' short' : ''}">
+        <input class="rebal-new-input acct-name" value="${escHtml(a.name)}" onchange="renameAccount(${i},this.value)">
+        <button class="rebal-del" onclick="removeAccount(${i})" title="Remove account">×</button>
+        <div class="acct-line"><span>Cash now</span>
+          <input class="rebal-input" type="number" step="1" value="${(a.cash || 0).toFixed(2)}" onchange="setAccountCash(${i},this.value)" style="width:110px;">
+        </div>
+        <div class="acct-line"><span>After trades</span><strong class="${b.end < -0.5 ? 'neg' : ''}">${fmt$(b.end)}</strong></div>
+      </div>`;
+  }).join('');
+
+  const warnings = [];
+  const unassignedCash = reportCashTotal() - accounts.reduce((s, a) => s + (a.cash || 0), 0);
+  if (Math.abs(unassignedCash) >= 1) {
+    warnings.push(unassignedCash > 0
+      ? `${fmt$(unassignedCash)} of the report's ${fmt$(reportCashTotal())} cash isn't assigned to an account yet.`
+      : `Account cash adds up to ${fmt$(-unassignedCash)} more than the report's ${fmt$(reportCashTotal())} cash.`);
+  }
+  const untaggedSells = plan.trades.filter(t => !t.isCash && t.side === 'sell' && !t.accountId).length;
+  if (untaggedSells) warnings.push(`${untaggedSells} sell${untaggedSells !== 1 ? 's need' : ' needs'} an account — pick one in the Account column so the proceeds land in the right place.`);
+  const short = accounts.filter(a => plan.balances[a.id].end < -0.5).map(a => a.name);
+  if (short.length) warnings.push(`<span style="color:var(--danger);">Not enough cash in ${short.map(escHtml).join(', ')} for the trades assigned to it.</span>`);
+
+  body.style.display = '';
+  body.innerHTML = `<div class="acct-list">${chips}</div>${warnings.map(w => `<div class="acct-warn">${w}</div>`).join('')}`;
+
+  // Keep each row's "—" option describing what will happen to that trade.
+  document.querySelectorAll('#rebal-tbody select[data-acct-ref]').forEach(sel => {
+    const t = plan.byRef.get(sel.dataset.acctRef);
+    const needsAcct = t && t.side === 'sell' && !t.accountId;
+    sel.options[0].textContent = t && t.auto ? 'Auto · ' + findAccount(t.accountId).name : needsAcct ? 'Pick account' : '—';
+    sel.classList.toggle('needs-acct', !!needsAcct);
+  });
+}
+
+function addAccount() {
+  if (!state.accounts) state.accounts = [];
+  const used = new Set(state.accounts.map(a => a.name));
+  const name = ACCOUNT_NAME_SUGGESTIONS.find(n => !used.has(n)) || 'Account ' + (state.accounts.length + 1);
+  const unassigned = reportCashTotal() - state.accounts.reduce((s, a) => s + (a.cash || 0), 0);
+  state.accounts.push({ id: 'acct-' + Date.now().toString(36), name, cash: Math.max(0, Math.round(unassigned * 100) / 100) });
+  renderAdvisor();
+  scheduleAutoSave();
+}
+
+function removeAccount(i) {
+  const acct = state.accounts[i];
+  if (!acct || !confirm(`Remove the ${acct.name} account? Funds tagged to it will need a new account.`)) return;
+  state.accounts.splice(i, 1);
+  Object.keys(state.holdingAccounts || {}).forEach(k => { if (state.holdingAccounts[k] === acct.id) delete state.holdingAccounts[k]; });
+  (state.rebalanceNew || []).forEach(pos => { if (pos.account === acct.id) pos.account = null; });
+  renderAdvisor();
+  scheduleAutoSave();
+}
+
+function renameAccount(i, name) {
+  state.accounts[i].name = name.trim() || state.accounts[i].name;
+  renderAdvisor();
+  scheduleAutoSave();
+}
+
+function setAccountCash(i, value) {
+  state.accounts[i].cash = +value || 0;
+  renderAccounts();
+  scheduleAutoSave();
+}
+
+function setHoldingAccount(i, accountId) {
+  if (!state.holdingAccounts) state.holdingAccounts = {};
+  const key = holdingAcctKey(state.holdings[i]);
+  if (accountId) state.holdingAccounts[key] = accountId;
+  else delete state.holdingAccounts[key];
+  renderAccounts();
+  scheduleAutoSave();
+}
+
+function setNewPositionAccount(i, accountId) {
+  state.rebalanceNew[i].account = accountId || null;
+  renderAccounts();
+  scheduleAutoSave();
+}
+
+function showTradeList() {
+  const plan = computeAccountPlan();
+  const accounts = state.accounts || [];
+  // With accounts set up, cash moves are shown as each account's balance rather than as trades.
+  const trades = accounts.length ? plan.trades.filter(t => !t.isCash) : plan.trades;
+  const sells  = trades.filter(t => t.side === 'sell');
+  const buys   = trades.filter(t => t.side === 'buy' && !t.isNew);
+  const newPos = trades.filter(t => t.isNew);
 
   const clientName = document.getElementById('f-client')?.value || 'Client';
   const reviewDate = document.getElementById('f-date')?.value || '';
@@ -2752,7 +2939,7 @@ function showTradeList() {
 
   document.getElementById('trade-modal-sub').textContent =
     clientName + (reviewDate ? ' · ' + reviewDate : '') +
-    ' · ' + (sells.length + buys.length + newPos.length) + ' trade' + (sells.length + buys.length + newPos.length !== 1 ? 's' : '');
+    ' · ' + trades.length + ' trade' + (trades.length !== 1 ? 's' : '');
 
   function tradeRow(label, color, desc, from, to, dollars, note) {
     return `
@@ -2769,24 +2956,43 @@ function showTradeList() {
 
   let html = '';
 
-  if (!sells.length && !buys.length && !newPos.length) {
+  const sectionLabel = (text, first) =>
+    `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin:${first ? '0' : '18px'} 0 4px;">${text}</div>`;
+  const entryRow = e => e.side === 'sell'
+    ? tradeRow('SELL', '#dc2626', e.desc, e.currentPct, e.targetPct, e.dollars, e.note)
+    : tradeRow('BUY', '#16a34a', e.desc, e.isNew ? null : e.currentPct, e.targetPct, e.dollars, e.note);
+
+  if (!trades.length) {
     html = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:0.85rem;">No changes — all targets match current allocations.</div>';
+  } else if (accounts.length) {
+    const groups = [...accounts.map(a => ({ name: a.name, balance: plan.balances[a.id], trades: trades.filter(t => t.accountId === a.id) })),
+                    { name: 'No account picked', balance: null, trades: trades.filter(t => !t.accountId) }]
+      .filter(g => g.trades.length);
+    groups.forEach((g, gi) => {
+      const short = g.balance && g.balance.end < -0.5;
+      html += `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin:${gi ? '26px' : '0'} 0 6px;padding-bottom:6px;border-bottom:2px solid #0f1f3d;">
+          <div style="font-size:0.95rem;font-weight:700;color:#0f1f3d;">${escHtml(g.name)}</div>
+          ${g.balance ? `<div style="font-size:0.76rem;color:#64748b;">Cash ${fmt$(g.balance.start)} → <strong style="color:${short ? '#dc2626' : '#0f1f3d'};">${fmt$(g.balance.end)}</strong>${short ? ' — not enough cash' : ''}</div>` : ''}
+        </div>`;
+      const gSells = g.trades.filter(t => t.side === 'sell').sort((a, b) => a.diff - b.diff);
+      const gBuys  = g.trades.filter(t => t.side === 'buy').sort((a, b) => (a.isNew - b.isNew) || (b.diff - a.diff));
+      if (gSells.length) { html += sectionLabel('Sells', true); gSells.forEach(e => { html += entryRow(e); }); }
+      if (gBuys.length)  { html += sectionLabel('Buys', !gSells.length); gBuys.forEach(e => { html += entryRow(e); }); }
+    });
   } else {
     if (sells.length) {
-      html += `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px;">Sells</div>`;
-      sells.sort((a,b) => a.diff - b.diff).forEach(e => {
-        html += tradeRow('SELL', '#dc2626', e.desc, e.currentPct, e.targetPct, e.dollars, e.note);
-      });
+      html += sectionLabel('Sells', true);
+      sells.sort((a,b) => a.diff - b.diff).forEach(e => { html += entryRow(e); });
     }
     if (buys.length || newPos.length) {
-      html += `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin:${sells.length ? '18px' : '0'} 0 4px;">Buys</div>`;
-      buys.sort((a,b) => b.diff - a.diff).forEach(e => {
-        html += tradeRow('BUY', '#16a34a', e.desc, e.currentPct, e.targetPct, e.dollars, e.note);
-      });
-      newPos.forEach(e => {
-        html += tradeRow('BUY', '#16a34a', e.desc, null, e.targetPct, e.dollars, e.note);
-      });
+      html += sectionLabel('Buys', !sells.length);
+      buys.sort((a,b) => b.diff - a.diff).forEach(e => { html += entryRow(e); });
+      newPos.forEach(e => { html += entryRow(e); });
     }
+  }
+
+  if (trades.length) {
     html += `
       <div style="display:flex;justify-content:flex-end;gap:24px;margin-top:16px;padding-top:14px;border-top:2px solid var(--border);font-size:0.8rem;">
         ${totalSell > 0 ? `<span style="color:#dc2626;font-weight:600;">Total sell: -${fmt$(totalSell)}</span>` : ''}
@@ -4077,6 +4283,8 @@ async function loadClient(id) {
     state.rebalanceNew = d.rebalanceNew || [];
     state.rebalanceNotes = d.rebalanceNotes || '';
     state.rebalanceRowNotes = d.rebalanceRowNotes || {};
+    state.accounts = d.accounts || [];
+    state.holdingAccounts = d.holdingAccounts || {};
     state.rawImport = d.rawImport || null;
     state.proposal = d.proposal || { portfolioValue: 0, targets: [] };
     state.implementation = d.implementation || [];
@@ -4117,6 +4325,8 @@ async function saveClient(silent = false) {
       rebalanceNew:      state.rebalanceNew,
       rebalanceNotes:    state.rebalanceNotes,
       rebalanceRowNotes: state.rebalanceRowNotes,
+      accounts:          state.accounts,
+      holdingAccounts:   state.holdingAccounts,
       rawImport:         state.rawImport,
       proposal:          state.proposal,
       implementation:    state.implementation,
@@ -4193,6 +4403,8 @@ function resetClientState() {
   state.rebalanceNew = [];
   state.rebalanceNotes = '';
   state.rebalanceRowNotes = {};
+  state.accounts = [];
+  state.holdingAccounts = {};
   state.rawImport = null;
   const rebalNotesEl = document.getElementById('rebal-notes');
   if (rebalNotesEl) rebalNotesEl.value = '';
