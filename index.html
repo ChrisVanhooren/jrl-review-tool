@@ -2346,6 +2346,7 @@ function renderAlloc() {
 const REBAL_GROUP_STYLE = { 'Cash & Equivalent': 'cash', 'Fixed Income': 'fi', 'Public Equities': 'eq', 'Alternatives': 'alt' };
 const rebalCollapsed = {};
 let rebalAggs = {};
+const REBAL_THRESHOLD = 0.05; // % changes smaller than this aren't trades
 // Account id the rebalancer is narrowed to, or '' for the whole portfolio. Percentages stay
 // relative to the whole portfolio either way, since that's what targets are stored as.
 let rebalView = '';
@@ -2373,8 +2374,12 @@ function rebalTarget(row, totalMV) {
     (state.rebalanceNew || []).forEach(p => { pct -= p.targetPct || 0; });
     return pct;
   }
+  // A target within REBAL_THRESHOLD of current is "no change" (often just the 2-decimal box
+  // being re-saved), matching what the trade list ignores.
   const key = holdingKey(row);
-  return state.rebalance[key] !== undefined ? state.rebalance[key] : row.mv / totalMV * 100;
+  const current = row.mv / totalMV * 100;
+  const target = state.rebalance[key];
+  return target !== undefined && Math.abs(target - current) >= REBAL_THRESHOLD ? target : current;
 }
 
 // Group → asset class → fund → the fund's rows (one per account), in GROUP_MAP order.
@@ -3069,7 +3074,7 @@ function computeAccountPlan() {
   const accounts = state.accounts || [];
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
-  const THRESHOLD = 0.05; // ignore changes under 0.05%
+  const THRESHOLD = REBAL_THRESHOLD;
   const trades = [];
 
   h.forEach(row => {
