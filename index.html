@@ -1016,7 +1016,7 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
       <div class="card-head">
         <div>
           <h3>Accounts</h3>
-          <div class="card-sub">Position reports don't say which account holds what — tag each fund below once and it's remembered</div>
+          <div class="card-sub">An account-by-account Position Report fills these in on import — with a consolidated report, tag each fund below once and it's remembered</div>
         </div>
         <button class="btn btn-secondary" onclick="addAccount()">+ Add Account</button>
       </div>
@@ -1581,18 +1581,33 @@ async function parseHoldingsPDF(file) {
 
   const _importLog = { filename: file.name, importedAt: new Date().toISOString(), skipped: [] };
   const holdings = [];
+  // The account-by-account version of the report puts an "Account: TFSA (4064899315CAD)" line
+  // above each account's holdings, which may continue onto the next page.
+  const reportAccounts = [];
+  let currentAccount = null;
   let cols = null;
   let reportedTotal = null;
 
   for (let p = 1; p <= pdf.numPages && reportedTotal == null; p++) {
     const page = await pdf.getPage(p);
-    const items = (await page.getTextContent()).items
+    let items = (await page.getTextContent()).items
       .filter(it => it.str.trim())
       .map(it => ({ str: it.str.trim(), x: it.transform[4], y: it.transform[5], right: it.transform[4] + it.width }));
 
     const pageCols = findPositionReportColumns(items);
     if (pageCols) cols = pageCols;
     if (!cols) continue;
+
+    const accountLines = [];
+    items.filter(it => /^Account:/.test(it.str)).forEach(start => {
+      const line = items.filter(it => Math.abs(it.y - start.y) < 3).sort((a, b) => a.x - b.x);
+      const m = line.map(it => it.str).join(' ').match(/^Account:\s*(.+?)\s*\((\d+)([A-Z]{3})?\)/);
+      if (!m) return;
+      accountLines.push({ y: start.y, type: m[1], number: m[2] });
+      items = items.filter(it => !line.includes(it));
+    });
+    accountLines.sort((a, b) => b.y - a.y);
+
     const body = pageCols ? items.filter(it => it.y < pageCols.headerBottom - 2) : items;
 
     // Each table row starts with its "% of Total" figure (or "Totals") in the far-left column.
@@ -1619,7 +1634,16 @@ async function parseHoldingsPDF(file) {
     }
 
     rows.sort((a, b) => b.y - a.y);
+    let nextAccountLine = 0;
     for (const row of rows) {
+      while (nextAccountLine < accountLines.length && accountLines[nextAccountLine].y > row.y) {
+        const { type, number } = accountLines[nextAccountLine++];
+        currentAccount = reportAccounts.find(a => a.number === number);
+        if (!currentAccount) {
+          currentAccount = { number, type, cash: 0 };
+          reportAccounts.push(currentAccount);
+        }
+      }
       const desc = row.descParts
         .sort((a, b) => b.y - a.y || a.x - b.x)
         .map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
@@ -1627,6 +1651,11 @@ async function parseHoldingsPDF(file) {
       const n = row.nums;
 
       if (d.startsWith('totals')) { reportedTotal = n.mv ?? null; break; }
+      // Each account's cash becomes that account's starting balance; one combined cash row is added below.
+      if (currentAccount && d === 'cash balance') {
+        currentAccount.cash += n.mv || 0;
+        continue;
+      }
       // Asset-class group rows ("Mutual funds", "Canadian stocks", "Cash balance") carry only subtotals.
       if (d === 'cash balance' || (!row.symbol && n.qty == null && n.price == null && !d.includes('cash'))) {
         _importLog.skipped.push({ desc, reason: 'section header row' });
@@ -1650,11 +1679,20 @@ async function parseHoldingsPDF(file) {
         gl: n.gl || 0,
         glpct: n.glpct || 0,
         income: n.income ?? null,
+        account: currentAccount ? reportAccountId(currentAccount.number) : undefined,
       });
     }
   }
 
   if (holdings.length === 0) throw new Error(`No holdings found in ${file.name} — is it a Position Report?`);
+
+  if (reportAccounts.length) {
+    const cash = Math.round(reportAccounts.reduce((s, a) => s + a.cash, 0) * 100) / 100;
+    holdings.unshift({ desc: 'Cash Balance', symbol: '—', cat: '', assetClass: 'Cash', qty: null, price: null,
+      book: cash, mv: cash, gl: 0, glpct: 0, income: null });
+    mergeReportAccounts(reportAccounts);
+    _importLog.accounts = reportAccounts.map(a => ({ ...a }));
+  }
 
   const importedTotal = Math.round(holdings.reduce((s, h) => s + h.mv, 0) * 100) / 100;
   _importLog.importedCount = holdings.length;
@@ -2256,7 +2294,7 @@ function renderAdvisor() {
   document.getElementById('rebal-acct-th').style.display = hasAccounts ? '' : 'none';
 
   h.forEach((row, i) => {
-    const key = row.desc + '|' + row.symbol;
+    const key = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
     const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
     totalTargetPct += targetPct;
@@ -2277,7 +2315,9 @@ function renderAdvisor() {
       </td>
       <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
       <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}&nbsp;<button class="rebal-replace-btn" onclick="replaceHolding('${escHtml(key)}','${escHtml(assetClass)}')" title="Zero this out and add a replacement">Replace →</button></td>
-      ${hasAccounts ? `<td>${isCashRow(row) ? '' : accountSelectHtml('h:' + key, (state.holdingAccounts || {})[holdingAcctKey(row)], `setHoldingAccount(${i},this.value)`)}</td>` : ''}
+      ${hasAccounts ? `<td>${isCashRow(row) ? ''
+        : findAccount(row.account) ? `<span class="cell-muted" title="From the Position Report">${escHtml(findAccount(row.account).name)}</span>`
+        : accountSelectHtml('h:' + key, holdingAccountId(row), `setHoldingAccount(${i},this.value)`)}</td>` : ''}
       <td></td>
       <td><input class="rebal-new-input" type="text" placeholder="e.g. Trimming — overvalued vs sector peers" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes['${escHtml(key)}']=this.value" style="width:260px;"></td>
     `;
@@ -2555,7 +2595,7 @@ function updateRebalStats(totalMV, totalTargetPct) {
     totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
     totalTargetPct = 0;
     h.forEach(row => {
-      const key = row.desc + '|' + row.symbol;
+      const key = holdingKey(row);
       const currentPct = row.mv / totalMV * 100;
       totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
     });
@@ -2589,7 +2629,7 @@ function handleRebalInput(input) {
   let totalTargetPct = 0;
 
   h.forEach((row, i) => {
-    const rkey = row.desc + '|' + row.symbol;
+    const rkey = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
     const targetPct = state.rebalance[rkey] !== undefined ? state.rebalance[rkey] : currentPct;
     totalTargetPct += targetPct;
@@ -2616,7 +2656,7 @@ function handleRebalInput(input) {
 // Finds the client's cash holding's rebalance key (same "desc|symbol" key used in state.rebalance).
 function getCashRebalKey() {
   const cash = getCashHolding();
-  return cash ? cash.desc + '|' + cash.symbol : null;
+  return cash ? holdingKey(cash) : null;
 }
 
 // Reduces (or restores) the cash row's rebalance target % to fund a new position, tracked as a
@@ -2671,7 +2711,7 @@ function handleNewRebalInput(input) {
 
   let totalTargetPct = 0;
   h.forEach(row => {
-    const key = row.desc + '|' + row.symbol;
+    const key = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
     totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
   });
@@ -2779,9 +2819,10 @@ function resetRebalTargets() {
 }
 
 // ── ACCOUNTS ──
-// Position reports are consolidated across a client's accounts, so which account (TFSA, RRSP,
-// Corp…) holds each fund is tagged on the Advisor Tool and remembered per client in
-// state.holdingAccounts, keyed by symbol so the tags survive the next import.
+// Consolidated position reports don't say which account (TFSA, RRSP, Corp…) holds each fund, so
+// it's tagged on the Advisor Tool and remembered per client in state.holdingAccounts, keyed by
+// symbol so the tags survive the next import. The account-by-account report sets row.account on
+// import instead, and a fund held in two accounts comes in as two rows.
 const ACCOUNT_NAME_SUGGESTIONS = ['TFSA', 'RRSP', 'Non-Reg', 'Corp', 'RESP', 'LIRA', 'RRIF'];
 
 function isCashRow(row) {
@@ -2790,6 +2831,33 @@ function isCashRow(row) {
 
 function holdingAcctKey(row) {
   return row.symbol && row.symbol !== '—' ? row.symbol : row.desc;
+}
+
+// Key for a holding's rebalance target and note.
+function holdingKey(row) {
+  return row.desc + '|' + row.symbol + (row.account ? '|' + row.account : '');
+}
+
+function holdingAccountId(row) {
+  return row.account || (state.holdingAccounts || {})[holdingAcctKey(row)];
+}
+
+function reportAccountId(number) {
+  return 'acct-' + number;
+}
+
+// Adds the accounts found in a Position Report, or refreshes the cash of ones already set up,
+// keeping any name the advisor has given them. A "Cash" account on the report is non-registered.
+function mergeReportAccounts(reportAccounts) {
+  if (!state.accounts) state.accounts = [];
+  reportAccounts.forEach(ra => {
+    const id = reportAccountId(ra.number);
+    const cash = Math.round(ra.cash * 100) / 100;
+    const existing = findAccount(id);
+    if (existing) { existing.cash = cash; return; }
+    const type = /^cash$/i.test(ra.type) ? 'Non-Reg' : ra.type;
+    state.accounts.push({ id, name: type + ' ' + ra.number.slice(-4), number: ra.number, cash });
+  });
 }
 
 function findAccount(id) {
@@ -2811,12 +2879,12 @@ function computeAccountPlan() {
   const trades = [];
 
   h.forEach(row => {
-    const key = row.desc + '|' + row.symbol;
+    const key = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
     const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
     const diff = targetPct - currentPct;
     if (Math.abs(diff) < THRESHOLD) return;
-    const chosen = findAccount((state.holdingAccounts || {})[holdingAcctKey(row)]);
+    const chosen = findAccount(holdingAccountId(row));
     trades.push({ ref: 'h:' + key, side: diff < 0 ? 'sell' : 'buy', isCash: isCashRow(row), isNew: false,
       desc: row.desc, code: row.symbol && row.symbol !== '—' ? row.symbol : lookupFundCode(row.desc), currentPct, targetPct, diff, dollars: Math.abs(diff / 100 * totalMV),
       note: (state.rebalanceRowNotes || {})[key] || '', accountId: chosen ? chosen.id : null, auto: false });
@@ -2934,8 +3002,16 @@ function setAccountCash(i, value) {
 }
 
 function setHoldingAccount(i, accountId) {
+  const row = state.holdings[i];
+  if (row.account) {
+    // Its report account was removed — re-tag this row only, as the fund may be in other accounts too.
+    row.account = accountId || undefined;
+    renderAdvisor();
+    scheduleAutoSave();
+    return;
+  }
   if (!state.holdingAccounts) state.holdingAccounts = {};
-  const key = holdingAcctKey(state.holdings[i]);
+  const key = holdingAcctKey(row);
   if (accountId) state.holdingAccounts[key] = accountId;
   else delete state.holdingAccounts[key];
   renderAccounts();
@@ -3479,7 +3555,7 @@ function buildNewPortfolioRows() {
   const rows = [];
 
   h.forEach(row => {
-    const key = row.desc + '|' + row.symbol;
+    const key = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
     const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
     if (targetPct <= 0.005) return; // sold out entirely
