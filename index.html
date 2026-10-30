@@ -1110,6 +1110,7 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
           </button>
           <button class="btn btn-secondary" onclick="resetRebalTargets()">Reset to Current</button>
           <button class="btn btn-secondary" onclick="showTradeList()">&#x2398; Trade Summary</button>
+          <button class="btn btn-secondary" onclick="showCashStatement()" title="Opening cash, each sell and buy, and closing cash, per account">$ Cash Statement</button>
           <button class="btn btn-secondary" onclick="printNewPortfolio()">&#x1F5A8; New Portfolio</button>
           <span class="badge">Internal Use Only</span>
         </div>
@@ -1246,7 +1247,7 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
   <div style="width:620px;max-width:calc(100vw - 48px);max-height:90vh;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(15,31,61,0.25);display:flex;flex-direction:column;overflow:hidden;">
     <div style="background:var(--navy);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
       <div>
-        <h4 style="color:#fff;margin:0;font-size:0.92rem;font-weight:600;">Trade Instructions</h4>
+        <h4 style="color:#fff;margin:0;font-size:0.92rem;font-weight:600;" id="trade-modal-title">Trade Instructions</h4>
         <div style="color:var(--gold-light);font-size:0.71rem;margin-top:2px;" id="trade-modal-sub"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -3259,6 +3260,7 @@ function showTradeList() {
   const totalBuy  = [...buys, ...newPos].reduce((s, e) => s + Math.abs(e.dollars), 0);
   const totalSell = sells.reduce((s, e) => s + Math.abs(e.dollars), 0);
 
+  document.getElementById('trade-modal-title').textContent = 'Trade Instructions';
   document.getElementById('trade-modal-sub').textContent =
     clientName + (reviewDate ? ' · ' + reviewDate : '') +
     ' · ' + trades.length + ' trade' + (trades.length !== 1 ? 's' : '');
@@ -3335,6 +3337,84 @@ function showTradeList() {
   document.getElementById('trade-modal').style.display = 'flex';
 }
 
+// A statement per account: opening cash, each sell, each buy, closing cash — the arithmetic behind
+// the Cash Balance figures. Narrowed to the account being viewed, if any.
+function showCashStatement() {
+  const plan = computeAccountPlan();
+  const accounts = state.accounts || [];
+  const trades = plan.trades.filter(t => !t.isCash);
+  const clientName = document.getElementById('f-client')?.value || 'Client';
+  const reviewDate = document.getElementById('f-date')?.value || '';
+
+  const money = n => fmt$(Math.abs(n));
+  const signed = n => (n < -0.005 ? '−' : '') + money(n);
+  const line = (label, amount, opts = {}) => `
+    <div style="display:flex;justify-content:space-between;gap:16px;padding:5px 0 5px ${opts.indent ? '18px' : '0'};${opts.rule ? 'border-top:1px solid #e2e8f0;margin-top:4px;' : ''}${opts.strong ? 'font-weight:700;' : ''}font-size:${opts.indent ? '0.8rem' : '0.86rem'};color:${opts.color || '#0f1f3d'};">
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</span>
+      <span style="flex-shrink:0;font-variant-numeric:tabular-nums;">${amount}</span>
+    </div>`;
+  const tradeLabel = t => `${t.code ? `<span style="font-family:Consolas,monospace;font-weight:700;margin-right:6px;">${escHtml(t.code)}</span>` : ''}${escHtml(t.desc)}`;
+  const statement = (name, start, list) => {
+    const sells = list.filter(t => t.side === 'sell').sort((a, b) => b.dollars - a.dollars);
+    const buys = list.filter(t => t.side === 'buy').sort((a, b) => b.dollars - a.dollars);
+    const totalSells = sells.reduce((s, t) => s + t.dollars, 0);
+    const totalBuys = buys.reduce((s, t) => s + t.dollars, 0);
+    const end = start + totalSells - totalBuys;
+    const short = end < -0.5;
+    let html = `<div style="margin-bottom:26px;">
+      <div style="font-size:0.95rem;font-weight:700;color:#0f1f3d;padding-bottom:6px;border-bottom:2px solid #0f1f3d;margin-bottom:6px;">${escHtml(name)}</div>`;
+    html += line('Opening cash', fmt$(start), { strong: true });
+    html += line(`+ Sells (${sells.length})`, '', { color: '#16a34a' });
+    sells.forEach(t => { html += line(tradeLabel(t), money(t.dollars), { indent: true }); });
+    html += line('Total sells', '+' + money(totalSells), { indent: true, rule: true, color: '#16a34a', strong: true });
+    html += line(`− Buys (${buys.length})`, '', { color: '#dc2626' });
+    buys.forEach(t => { html += line(tradeLabel(t), money(t.dollars), { indent: true }); });
+    html += line('Total buys', '−' + money(totalBuys), { indent: true, rule: true, color: '#dc2626', strong: true });
+    html += `<div style="display:flex;justify-content:space-between;margin-top:8px;padding:9px 12px;border-radius:6px;background:${short ? '#fef2f2' : '#eaf2fa'};font-weight:700;font-size:0.9rem;color:${short ? '#dc2626' : '#0f1f3d'};">
+        <span>Closing cash${short ? ' — not enough cash' : ''}</span>
+        <span style="font-variant-numeric:tabular-nums;">${signed(end)}</span>
+      </div>
+      <div style="font-size:0.72rem;color:#64748b;margin-top:4px;text-align:right;">${fmt$(start)} + ${money(totalSells)} − ${money(totalBuys)} = ${signed(end)}</div>
+    </div>`;
+    return { html, start, totalSells, totalBuys, end };
+  };
+
+  let html = '';
+  let scope = 'All accounts';
+  if (!accounts.length) {
+    const cash = getCashHolding();
+    html = statement('Portfolio', cash ? cash.mv : 0, trades).html;
+    scope = 'Portfolio';
+  } else {
+    const shown = rebalView ? accounts.filter(a => a.id === rebalView) : accounts;
+    if (rebalView) scope = shown[0].name;
+    const parts = shown.map(a => statement(a.name, plan.balances[a.id].start, trades.filter(t => t.accountId === a.id)));
+    html = parts.map(p => p.html).join('');
+    if (!rebalView && parts.length > 1) {
+      const sum = k => parts.reduce((s, p) => s + p[k], 0);
+      const end = sum('end');
+      html += `<div style="border-top:3px double #0f1f3d;padding-top:10px;">
+        <div style="font-size:0.95rem;font-weight:700;color:#0f1f3d;margin-bottom:6px;">Household</div>
+        ${line('Opening cash', fmt$(sum('start')))}
+        ${line('+ Total sells', '+' + money(sum('totalSells')), { color: '#16a34a' })}
+        ${line('− Total buys', '−' + money(sum('totalBuys')), { color: '#dc2626' })}
+        ${line('Closing cash', signed(end), { strong: true, rule: true, color: end < -0.5 ? '#dc2626' : '#0f1f3d' })}
+      </div>`;
+    }
+    const unplaced = trades.filter(t => !t.accountId);
+    if (unplaced.length && !rebalView) {
+      html += `<div style="margin-top:16px;padding:10px 12px;border-radius:6px;background:#fffbeb;color:#b45309;font-size:0.78rem;">
+        Not in any statement above because no account is picked: ${unplaced.map(t => escHtml(t.desc)).join(', ')}.
+        Pick an account in the rebalancer.</div>`;
+    }
+  }
+
+  document.getElementById('trade-modal-title').textContent = 'Cash Statement';
+  document.getElementById('trade-modal-sub').textContent = clientName + (reviewDate ? ' · ' + reviewDate : '') + ' · ' + scope;
+  document.getElementById('trade-modal-body').innerHTML = html;
+  document.getElementById('trade-modal').style.display = 'flex';
+}
+
 function closeTradeList() {
   document.getElementById('trade-modal').style.display = 'none';
 }
@@ -3361,17 +3441,18 @@ function printInternalNotes() {
 }
 
 function printTradeList() {
-  const body = document.getElementById('trade-modal-body').innerHTML;
-  const sub  = document.getElementById('trade-modal-sub').textContent;
-  const win  = window.open('', '_blank', 'width=700,height=800');
-  win.document.write(`<!DOCTYPE html><html><head><title>Trade Instructions</title>
+  const body  = document.getElementById('trade-modal-body').innerHTML;
+  const sub   = document.getElementById('trade-modal-sub').textContent;
+  const title = document.getElementById('trade-modal-title').textContent;
+  const win   = window.open('', '_blank', 'width=700,height=800');
+  win.document.write(`<!DOCTYPE html><html><head><title>${escHtml(title)}</title>
     <style>
       body { font-family: 'Segoe UI', sans-serif; margin: 40px; color: #0f1f3d; }
       h2 { font-size: 1.1rem; margin: 0 0 4px; }
       .sub { font-size: 0.78rem; color: #6b7280; margin-bottom: 24px; }
       @media print { body { margin: 20px; } }
     </style></head><body>
-    <h2>Trade Instructions</h2>
+    <h2>${escHtml(title)}</h2>
     <div class="sub">${escHtml(sub)}</div>
     ${body}
     <script>window.onload=()=>window.print()<\/script>
