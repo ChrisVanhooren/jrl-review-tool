@@ -465,6 +465,7 @@ tr:hover .rebal-del { opacity: 1; }
 }
 #rebal-table .rb-new-class { width: 150px; }
 .rb-dim { color: var(--muted); }
+.rb-view-cash { font-weight: 400; color: var(--muted); margin-left: 6px; }
 #rebal-table .rb-new-del { opacity: 0.55; margin-left: 6px; }
 #rebal-table .rb-new-del:hover { opacity: 1; }
 #rebal-table .rebal-new-input:not(.rebal-desc-input)::placeholder { color: transparent; }
@@ -477,6 +478,7 @@ tr:hover .rebal-del { opacity: 1; }
   border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
 }
 .acct-chip.short { border-color: var(--danger); }
+.acct-chip.viewing { box-shadow: 0 0 0 2px var(--gold); background: var(--white); }
 .acct-chip .acct-name { font-weight: 600; color: var(--navy); font-size: 0.88rem; margin-bottom: 6px; width: 140px; }
 .acct-chip .acct-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 .acct-chip .acct-line strong { font-variant-numeric: tabular-nums; }
@@ -1079,7 +1081,10 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
     </div>
     <div class="card">
       <div class="card-head">
-        <h3>Portfolio Rebalancer</h3>
+        <div style="display:flex;gap:14px;align-items:center;">
+          <h3>Portfolio Rebalancer</h3>
+          <select class="field-select" id="rebal-view" style="display:none;width:190px;height:32px;" onchange="setRebalView(this.value)" title="Show the whole portfolio or one account"></select>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-primary" onclick="addRebalPosition()">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -2330,6 +2335,14 @@ function renderAlloc() {
 const REBAL_GROUP_STYLE = { 'Cash & Equivalent': 'cash', 'Fixed Income': 'fi', 'Public Equities': 'eq', 'Alternatives': 'alt' };
 const rebalCollapsed = {};
 let rebalAggs = {};
+// Account id the rebalancer is narrowed to, or '' for the whole portfolio. Percentages stay
+// relative to the whole portfolio either way, since that's what targets are stored as.
+let rebalView = '';
+
+function setRebalView(accountId) {
+  rebalView = accountId;
+  renderAdvisor();
+}
 
 function rebalGroupOf(assetClass) {
   const g = GROUP_MAP.find(g => g.subs.some(s => s.classes.includes(assetClass)));
@@ -2343,7 +2356,7 @@ function rebalTarget(row, totalMV) {
 
 // Group → asset class → fund → the fund's rows (one per account), in GROUP_MAP order.
 // New positions with an asset class sit in their class (cls.news holds their rebalanceNew indexes).
-function buildRebalTree(h, newPositions) {
+function buildRebalTree(h, newPositions, showHolding = () => true, showNew = () => true) {
   const classOrder = GROUP_MAP.flatMap(g => g.subs.flatMap(s => s.classes));
   const rank = name => { const i = classOrder.indexOf(name); return i === -1 ? classOrder.length : i; };
   const groups = [...GROUP_MAP.map(g => g.group), 'Unclassified'].map(name => ({ name, classes: [] }));
@@ -2353,8 +2366,9 @@ function buildRebalTree(h, newPositions) {
     if (!cls) group.classes.push(cls = { name: ac, funds: [], news: [] });
     return cls;
   };
-  newPositions.forEach((pos, n) => { if (pos.assetClass) classFor(pos.assetClass).news.push(n); });
+  newPositions.forEach((pos, n) => { if (pos.assetClass && showNew(n)) classFor(pos.assetClass).news.push(n); });
   h.forEach((row, i) => {
+    if (!showHolding(i)) return;
     const cls = classFor(row.assetClass || getAssetClass(row.symbol, row.desc) || '');
     const fundKey = row.desc + '|' + row.symbol;
     let fund = cls.funds.find(f => f.key === fundKey);
@@ -2401,6 +2415,16 @@ function renderAdvisor() {
   const colCount = hasAccounts ? 10 : 9;
   rebalAggs = {};
   const html = [];
+
+  if (rebalView && !findAccount(rebalView)) rebalView = '';
+  const viewSel = document.getElementById('rebal-view');
+  viewSel.style.display = hasAccounts ? '' : 'none';
+  viewSel.innerHTML = `<option value="">All accounts</option>` +
+    (state.accounts || []).map(a => `<option value="${escHtml(a.id)}"${a.id === rebalView ? ' selected' : ''}>${escHtml(a.name)}</option>`).join('');
+  // A new position belongs to the account it was given, or the one auto-picked for its buy.
+  const plan = rebalView ? computeAccountPlan() : null;
+  const showHolding = i => !rebalView || holdingAccountId(h[i]) === rebalView;
+  const showNew = i => !rebalView || (state.rebalanceNew[i].account || (plan.byRef.get('n:' + i) || {}).accountId) === rebalView;
 
   const sumMV = idxs => idxs.reduce((s, i) => s + h[i].mv, 0);
   // Diff and $ cells are filled in by refreshRebalNumbers().
@@ -2486,7 +2510,7 @@ function renderAdvisor() {
       </tr>`;
   };
 
-  buildRebalTree(h, newPositions).forEach(group => {
+  buildRebalTree(h, newPositions, showHolding, showNew).forEach(group => {
     const style = REBAL_GROUP_STYLE[group.name] || 'other';
     const gid = 'g:' + group.name;
     html.push(band('group', style, gid, group.name, group.classes.flatMap(c => c.funds.flatMap(f => f.idxs)), group.classes.flatMap(c => c.news)));
@@ -2518,19 +2542,33 @@ function renderAdvisor() {
   });
 
   // New positions still waiting for an asset class stay at the bottom until one is picked.
-  const unplaced = newPositions.map((pos, i) => i).filter(i => !newPositions[i].assetClass);
+  const unplaced = newPositions.map((pos, i) => i).filter(i => !newPositions[i].assetClass && showNew(i));
   if (unplaced.length) {
     html.push(`<tr class="rb-band rb-group rb-new"><td colspan="${colCount}">New Positions — pick an asset class to place them</td></tr>`);
     unplaced.forEach(i => html.push(newRow(i)));
   }
 
-  html.push(`
-    <tr class="tfoot-row">
-      <td colspan="3"><strong>Total</strong></td>
-      <td class="r">100.00%</td>
-      <td class="r" id="rebal-total-target" style="font-weight:600;"></td>
-      <td colspan="${colCount - 5}"></td>
-    </tr>`);
+  if (rebalView) {
+    const visible = h.map((r, i) => i).filter(showHolding);
+    const visibleNew = newPositions.map((p, i) => i).filter(showNew);
+    if (!visible.length && !visibleNew.length) {
+      html.push(`<tr><td colspan="${colCount}" style="text-align:center;color:var(--muted);padding:1.5rem;">No holdings in ${escHtml(findAccount(rebalView).name)} yet.</td></tr>`);
+    }
+    html.push(`
+      <tr class="tfoot-row" data-agg="view-total">
+        <td colspan="2"><strong>${escHtml(findAccount(rebalView).name)} total</strong><span class="rb-view-cash" id="rb-view-cash"></span></td>
+        ${figures('view-total', visible, '', '', visibleNew)}
+        <td colspan="${colCount - 7}"></td>
+      </tr>`);
+  } else {
+    html.push(`
+      <tr class="tfoot-row">
+        <td colspan="3"><strong>Total</strong></td>
+        <td class="r">100.00%</td>
+        <td class="r" id="rebal-total-target" style="font-weight:600;"></td>
+        <td colspan="${colCount - 5}"></td>
+      </tr>`);
+  }
   tbody.innerHTML = html.join('');
 
   refreshRebalNumbers();
@@ -2944,7 +2982,7 @@ function focusNewPosition(i) {
 
 function addRebalPosition() {
   if (!state.rebalanceNew) state.rebalanceNew = [];
-  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0, fundedFromCash: false, cashFundedPct: 0 });
+  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0, fundedFromCash: false, cashFundedPct: 0, account: rebalView || null });
   renderAdvisor();
   focusNewPosition(state.rebalanceNew.length - 1);
 }
@@ -3082,7 +3120,7 @@ function renderAccounts() {
   const chips = accounts.map((a, i) => {
     const b = plan.balances[a.id];
     return `
-      <div class="acct-chip${b.end < -0.5 ? ' short' : ''}">
+      <div class="acct-chip${b.end < -0.5 ? ' short' : ''}${a.id === rebalView ? ' viewing' : ''}">
         <input class="rebal-new-input acct-name" value="${escHtml(a.name)}" onchange="renameAccount(${i},this.value)">
         <button class="rebal-del" onclick="removeAccount(${i})" title="Remove account">×</button>
         <div class="acct-line"><span>Cash now</span>
@@ -3106,6 +3144,10 @@ function renderAccounts() {
 
   body.style.display = '';
   body.innerHTML = `<div class="acct-list">${chips}</div>${warnings.map(w => `<div class="acct-warn">${w}</div>`).join('')}`;
+
+  const viewCash = document.getElementById('rb-view-cash');
+  const vb = plan.balances[rebalView];
+  if (viewCash && vb) viewCash.innerHTML = `· cash ${fmt$(vb.start)} → <span class="${vb.end < -0.5 ? 'neg' : ''}">${fmt$(vb.end)}</span> after trades`;
 
   // Keep each row's "—" option describing what will happen to that trade.
   document.querySelectorAll('#rebal-tbody select[data-acct-ref]').forEach(sel => {
