@@ -479,6 +479,12 @@ tr:hover .rebal-del { opacity: 1; }
 }
 .acct-chip.short { border-color: var(--danger); }
 .acct-chip.viewing { box-shadow: 0 0 0 2px var(--gold); background: var(--white); }
+.rb-acct-link {
+  background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: 0.78rem;
+  color: var(--navy-mid); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 2px;
+}
+.rb-acct-link:hover { color: var(--navy); text-decoration-color: var(--gold); }
+.acct-view-link { display: block; margin-top: 8px; font-weight: 600; }
 .acct-chip .acct-name { font-weight: 600; color: var(--navy); font-size: 0.88rem; margin-bottom: 6px; width: 140px; }
 .acct-chip .acct-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 .acct-chip .acct-line strong { font-variant-numeric: tabular-nums; }
@@ -2342,6 +2348,9 @@ let rebalView = '';
 function setRebalView(accountId) {
   rebalView = accountId;
   renderAdvisor();
+  // Clicked from far down the table: bring its (now shorter) top back into view below the sticky bars.
+  const top = document.getElementById('rebal-table').getBoundingClientRect().top;
+  if (top < 0) window.scrollBy({ top: top - 140, behavior: 'smooth' });
 }
 
 function rebalGroupOf(assetClass) {
@@ -2443,6 +2452,9 @@ function renderAdvisor() {
       ${figures(id, idxs, '', '', news)}
       <td colspan="${colCount - 7}"></td>
     </tr>`;
+  const acctLink = acct => acct.id === rebalView
+    ? `<span class="cell-muted">${escHtml(acct.name)}</span>`
+    : `<button class="rb-acct-link" data-acct="${escHtml(acct.id)}" onclick="setRebalView(this.dataset.acct)" title="Show only ${escHtml(acct.name)}">${escHtml(acct.name)}</button>`;
   const holdingRow = (i, child, stripe) => {
     const row = h[i];
     const key = holdingKey(row);
@@ -2457,12 +2469,12 @@ function renderAdvisor() {
       </select>` : '';
     return `
       <tr class="rb-row${child ? ' rb-child' : ''}${stripe ? ' rb-stripe' : ''}" data-agg="${escHtml('h:' + key)}" data-hkey="${escHtml(key)}" data-ac="${escHtml(assetClass)}">
-        <td><div class="rb-name" title="${escHtml(row.desc)}${acct ? ' · ' + escHtml(acct.name) : ''}">${escHtml(name)}</div></td>
+        <td><div class="rb-name" title="${escHtml(row.desc)}${acct ? ' · ' + escHtml(acct.name) : ''}">${child && acct ? acctLink(acct) : escHtml(name)}</div></td>
         <td class="rb-sym">${symbol}${classSelect}</td>
         ${figures('h:' + key, [i], `<input class="rebal-input" type="number" step="0.1" min="0" max="100"
           value="${rebalTarget(row, totalMV).toFixed(2)}" data-rkey="${escHtml(key)}" onchange="handleRebalInput(this)">`)}
         ${hasAccounts ? `<td>${isCashRow(row) ? ''
-          : acct ? `<span class="cell-muted" title="From the Position Report">${escHtml(acct.name)}</span>`
+          : acct ? acctLink(acct)
           : accountSelectHtml('h:' + key, holdingAccountId(row), `setHoldingAccount(${i},this.value)`)}</td>` : ''}
         <td></td>
         <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes[this.closest('tr').dataset.hkey]=this.value"></td>
@@ -3127,6 +3139,7 @@ function renderAccounts() {
           <input class="rebal-input" type="number" step="1" value="${(a.cash || 0).toFixed(2)}" onchange="setAccountCash(${i},this.value)" style="width:110px;">
         </div>
         <div class="acct-line"><span>After trades</span><strong class="${b.end < -0.5 ? 'neg' : ''}">${fmt$(b.end)}</strong></div>
+        <button class="rb-acct-link acct-view-link" data-acct="${escHtml(a.id)}" onclick="setRebalView(${a.id === rebalView ? "''" : 'this.dataset.acct'})">${a.id === rebalView ? 'Viewing · show all' : 'View holdings →'}</button>
       </div>`;
   }).join('');
 
