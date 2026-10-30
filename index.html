@@ -341,6 +341,7 @@ input.nw-input {
 .stat-card .val { font-family: 'DM Sans', sans-serif; font-size: 1.6rem; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .stat-card .val.pos { color: var(--success); }
 .stat-card .val.neg { color: var(--danger); }
+.stat-card .stat-sub { font-size: 0.76rem; color: var(--muted); margin-top: 4px; }
 
 /* ── NOTES ── */
 textarea.notes {
@@ -2870,10 +2871,15 @@ function updateRebalStats(totalMV, totalTargetPct) {
   const cashAfter = cash ? rebalTarget(cash, totalMV) / 100 * totalMV : 0;
   const allocColor = Math.abs(remaining) < 0.05 ? 'var(--success)' : Math.abs(remaining) < 5 ? '#b45309' : 'var(--danger)';
   const newCount = (state.rebalanceNew || []).length;
+  // With calculated cash the targets always total 100%, so show how much ends up invested instead.
+  const cashPct = cashAfter / totalMV * 100;
   const statsEl = document.getElementById('rebal-stats');
   if (statsEl) statsEl.innerHTML = `
     <div class="stat-card"><div class="lbl">Portfolio Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
-    <div class="stat-card"><div class="lbl">Total Allocated</div><div class="val" style="color:${allocColor}">${totalTargetPct.toFixed(2)}%</div></div>
+    ${cash
+      ? `<div class="stat-card"><div class="lbl">Invested After Trades</div><div class="val">${(100 - cashPct).toFixed(2)}%</div>
+           <div class="stat-sub">${fmt$(totalMV - cashAfter)} invested · ${cashPct.toFixed(2)}% in cash</div></div>`
+      : `<div class="stat-card"><div class="lbl">Total Allocated</div><div class="val" style="color:${allocColor}">${totalTargetPct.toFixed(2)}%</div></div>`}
     ${cash
       ? `<div class="stat-card"><div class="lbl">Cash After Trades</div><div class="val ${cashAfter < -0.5 ? 'neg' : ''}">${fmt$(cashAfter)}</div></div>`
       : `<div class="stat-card"><div class="lbl">Remaining to Allocate</div><div class="val" style="color:${Math.abs(remaining) < 0.05 ? 'var(--success)' : 'var(--danger)'}">${remaining >= 0 ? '+' : ''}${remaining.toFixed(2)}%</div></div>`}
