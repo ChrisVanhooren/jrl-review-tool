@@ -442,6 +442,38 @@ tr:hover .rebal-del { opacity: 1; }
 tr:hover .rebal-replace-btn { opacity: 1; }
 .rebal-replace-btn:hover { border-color: var(--gold); color: var(--navy); }
 
+/* Banded rebalancer: colours follow the Position Report (blue cash, yellow fixed income, green equities). */
+.rb-cash  { --band: #0b5f93; --band-ink: #fff;    --band-sub: #5b93c2; --band-sub-ink: #fff; }
+.rb-fi    { --band: #e4d51c; --band-ink: #1e293b; --band-sub: #f4ed96; --band-sub-ink: #1e293b; }
+.rb-eq    { --band: #5c9a36; --band-ink: #fff;    --band-sub: #a6cd82; --band-sub-ink: #1e293b; }
+.rb-alt   { --band: #6650a6; --band-ink: #fff;    --band-sub: #b4a7dc; --band-sub-ink: #1e293b; }
+.rb-other { --band: #6b7280; --band-ink: #fff;    --band-sub: #d4d8de; --band-sub-ink: #1e293b; }
+.rb-new   { --band: #e2e8f0; --band-ink: var(--navy); }
+#rebal-table tbody td { padding: 4px 10px; white-space: nowrap; }
+#rebal-table .rebal-input { height: 26px; }
+#rebal-table .ac-select { height: 26px; }
+.rb-band td { font-weight: 700; cursor: pointer; user-select: none; border-bottom: 1px solid rgba(15,23,42,0.08); }
+#rebal-table tbody tr.rb-band td { padding-top: 6px; padding-bottom: 6px; }
+.rb-band.rb-group td, tbody tr.rb-band.rb-group:hover td { background: var(--band); color: var(--band-ink); }
+.rb-band.rb-class td, tbody tr.rb-band.rb-class:hover td { background: var(--band-sub); color: var(--band-sub-ink); font-weight: 600; }
+.rb-band.rb-new td { cursor: default; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.rb-band .pos, .rb-band .neg { color: inherit; }
+.rb-band .chevron, .rb-fund .chevron { display: inline-block; width: 14px; font-size: 0.7rem; transition: transform 0.15s ease; }
+.rb-band.collapsed .chevron, .rb-fund.collapsed .chevron { transform: rotate(-90deg); }
+.rb-stripe td { background: var(--surface-2); }
+.rb-fund td { font-weight: 600; cursor: pointer; user-select: none; }
+.rb-name { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-child .rb-name { padding-left: 28px; color: var(--muted); }
+.rb-sym { color: var(--muted); font-size: 0.76rem; white-space: nowrap; }
+#rebal-table .rb-class-select { margin-left: 6px; width: 110px; min-width: 0; }
+#rebal-table .rebal-new-input { width: 180px; }
+#rebal-table td:has(> .rebal-replace-btn) { position: relative; }
+#rebal-table .rebal-replace-btn { position: absolute; left: 100%; top: 50%; transform: translateY(-50%); margin-left: 2px; background: var(--white); z-index: 1; }
+#rebal-table .rebal-desc-input { width: 100%; }
+#rebal-table tbody tr.rb-row:hover td, #rebal-table tbody tr.rb-fund:hover td { background: var(--hover); }
+#rebal-table .rebal-new-input:not(.rebal-desc-input)::placeholder { color: transparent; }
+#rebal-table tr:hover .rebal-new-input::placeholder, #rebal-table .rebal-new-input:focus::placeholder { color: #c3c9d2; }
+
 /* ── ACCOUNTS ── */
 .acct-list { display: flex; flex-wrap: wrap; gap: 12px; }
 .acct-chip {
@@ -1040,7 +1072,7 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
         <table id="rebal-table">
           <thead><tr>
             <th>Description</th>
-            <th>Asset Class</th>
+            <th>Symbol</th>
             <th class="r">Market Value</th>
             <th class="r">Current %</th>
             <th class="r">Target %</th>
@@ -2275,6 +2307,55 @@ function renderAlloc() {
 }
 
 // ── ADVISOR / REBALANCER ──
+// Holdings are banded like the Position Report: a coloured band per broad group (GROUP_MAP), a
+// lighter band per asset class, and a fund held in several accounts as a total row over one row
+// per account. Every band and total row carries data-agg, naming the holdings it sums in
+// rebalAggs, so a target edit can refresh the figures without rebuilding the table.
+const REBAL_GROUP_STYLE = { 'Cash & Equivalent': 'cash', 'Fixed Income': 'fi', 'Public Equities': 'eq', 'Alternatives': 'alt' };
+const rebalCollapsed = {};
+let rebalAggs = {};
+
+function rebalGroupOf(assetClass) {
+  const g = GROUP_MAP.find(g => g.subs.some(s => s.classes.includes(assetClass)));
+  return g ? g.group : 'Unclassified';
+}
+
+function rebalTarget(row, totalMV) {
+  const key = holdingKey(row);
+  return state.rebalance[key] !== undefined ? state.rebalance[key] : row.mv / totalMV * 100;
+}
+
+// Group → asset class → fund → the fund's rows (one per account), in GROUP_MAP order.
+function buildRebalTree(h) {
+  const classOrder = GROUP_MAP.flatMap(g => g.subs.flatMap(s => s.classes));
+  const rank = name => { const i = classOrder.indexOf(name); return i === -1 ? classOrder.length : i; };
+  const groups = [...GROUP_MAP.map(g => g.group), 'Unclassified'].map(name => ({ name, classes: [] }));
+  h.forEach((row, i) => {
+    const ac = row.assetClass || getAssetClass(row.symbol, row.desc) || '';
+    const group = groups.find(g => g.name === rebalGroupOf(ac));
+    let cls = group.classes.find(c => c.name === ac);
+    if (!cls) group.classes.push(cls = { name: ac, funds: [] });
+    const fundKey = row.desc + '|' + row.symbol;
+    let fund = cls.funds.find(f => f.key === fundKey);
+    if (!fund) cls.funds.push(fund = { key: fundKey, row, idxs: [] });
+    fund.idxs.push(i);
+  });
+  groups.forEach(g => g.classes.sort((a, b) => rank(a.name) - rank(b.name)));
+  return groups.filter(g => g.classes.length);
+}
+
+function toggleRebalBand(id) {
+  rebalCollapsed[id] = !rebalCollapsed[id];
+  renderAdvisor();
+}
+
+function setRebalAssetClass(i, assetClass) {
+  state.holdings[i].assetClass = assetClass;
+  renderHoldings();
+  renderAdvisor();
+  scheduleAutoSave();
+}
+
 function renderAdvisor() {
   const tbody = document.getElementById('rebal-tbody');
   if (!tbody) return;
@@ -2288,102 +2369,161 @@ function renderAdvisor() {
   }
 
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
-  tbody.innerHTML = '';
-  let totalTargetPct = 0;
   const hasAccounts = (state.accounts || []).length > 0;
   document.getElementById('rebal-acct-th').style.display = hasAccounts ? '' : 'none';
+  const colCount = hasAccounts ? 10 : 9;
+  rebalAggs = {};
+  const html = [];
 
-  h.forEach((row, i) => {
+  const sumMV = idxs => idxs.reduce((s, i) => s + h[i].mv, 0);
+  // Diff and $ cells are filled in by refreshRebalNumbers().
+  const figures = (id, idxs, targetHtml, extra = '') => {
+    rebalAggs[id] = idxs;
+    const mv = sumMV(idxs);
+    return `<td class="r">${fmt$(mv)}</td>
+      <td class="r">${(mv / totalMV * 100).toFixed(2)}%</td>
+      <td class="r${targetHtml ? '' : ' rb-tgt'}">${targetHtml}</td>
+      <td class="r rb-diff"></td>
+      <td class="r"><span class="rb-dollars"></span>${extra}</td>`;
+  };
+  const band = (kind, style, id, label, idxs) => `
+    <tr class="rb-band rb-${kind} rb-${style}${rebalCollapsed[id] ? ' collapsed' : ''}" data-agg="${escHtml(id)}" data-band="${escHtml(id)}" onclick="toggleRebalBand(this.dataset.band)">
+      <td colspan="2"><span class="chevron">▾</span>${escHtml(label)}</td>
+      ${figures(id, idxs, '')}
+      <td colspan="${colCount - 7}"></td>
+    </tr>`;
+  const holdingRow = (i, child, stripe) => {
+    const row = h[i];
     const key = holdingKey(row);
-    const currentPct = row.mv / totalMV * 100;
-    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
-    totalTargetPct += targetPct;
-    const diff = targetPct - currentPct;
-    const actionDollars = diff / 100 * totalMV;
-    const assetClass = row.assetClass || row.cat || '—';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${escHtml(row.desc)}</td>
-      <td class="cell-ac">${escHtml(assetClass)}</td>
-      <td class="r">${fmt$(row.mv)}</td>
-      <td class="r">${currentPct.toFixed(2)}%</td>
-      <td class="r" style="padding-top:4px;padding-bottom:4px;">
-        <input class="rebal-input" type="number" step="0.1" min="0" max="100"
-          value="${targetPct.toFixed(2)}"
-          data-rkey="${escHtml(key)}"
-          onchange="handleRebalInput(this)">
-      </td>
-      <td class="r ${Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%</td>
-      <td class="r ${Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg'}">${actionDollars >= 0 ? '+' : ''}${fmt$(actionDollars)}&nbsp;<button class="rebal-replace-btn" onclick="replaceHolding('${escHtml(key)}','${escHtml(assetClass)}')" title="Zero this out and add a replacement">Replace →</button></td>
-      ${hasAccounts ? `<td>${isCashRow(row) ? ''
-        : findAccount(row.account) ? `<span class="cell-muted" title="From the Position Report">${escHtml(findAccount(row.account).name)}</span>`
-        : accountSelectHtml('h:' + key, holdingAccountId(row), `setHoldingAccount(${i},this.value)`)}</td>` : ''}
-      <td></td>
-      <td><input class="rebal-new-input" type="text" placeholder="e.g. Trimming — overvalued vs sector peers" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes['${escHtml(key)}']=this.value" style="width:260px;"></td>
-    `;
-    tbody.appendChild(tr);
+    const assetClass = row.assetClass || getAssetClass(row.symbol, row.desc) || '';
+    const acct = findAccount(row.account);
+    const name = child ? (acct ? acct.name : 'No account') : row.desc;
+    const symbol = child ? '' : row.symbol && row.symbol !== '—' ? escHtml(row.symbol) : '';
+    const classSelect = rebalGroupOf(assetClass) === 'Unclassified' && !isCashRow(row) ? `
+      <select class="ac-select rb-class-select" onchange="setRebalAssetClass(${i},this.value)">
+        <option value="">Set class…</option>
+        ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+      </select>` : '';
+    return `
+      <tr class="rb-row${child ? ' rb-child' : ''}${stripe ? ' rb-stripe' : ''}" data-agg="${escHtml('h:' + key)}" data-hkey="${escHtml(key)}" data-ac="${escHtml(assetClass)}">
+        <td><div class="rb-name" title="${escHtml(row.desc)}${acct ? ' · ' + escHtml(acct.name) : ''}">${escHtml(name)}</div></td>
+        <td class="rb-sym">${symbol}${classSelect}</td>
+        ${figures('h:' + key, [i], `<input class="rebal-input" type="number" step="0.1" min="0" max="100"
+          value="${rebalTarget(row, totalMV).toFixed(2)}" data-rkey="${escHtml(key)}" onchange="handleRebalInput(this)">`,
+          `<button class="rebal-replace-btn" onclick="replaceHolding(this.closest('tr').dataset.hkey,this.closest('tr').dataset.ac)" title="Zero this out and add a replacement">Replace →</button>`)}
+        ${hasAccounts ? `<td>${isCashRow(row) ? ''
+          : acct ? `<span class="cell-muted" title="From the Position Report">${escHtml(acct.name)}</span>`
+          : accountSelectHtml('h:' + key, holdingAccountId(row), `setHoldingAccount(${i},this.value)`)}</td>` : ''}
+        <td></td>
+        <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes[this.closest('tr').dataset.hkey]=this.value"></td>
+      </tr>`;
+  };
+
+  buildRebalTree(h).forEach(group => {
+    const style = REBAL_GROUP_STYLE[group.name] || 'other';
+    const gid = 'g:' + group.name;
+    html.push(band('group', style, gid, group.name, group.classes.flatMap(c => c.funds.flatMap(f => f.idxs))));
+    if (rebalCollapsed[gid]) return;
+    // A sub-band only helps when the group has more than one asset class in it.
+    const showClassBands = group.classes.length > 1;
+    group.classes.forEach(cls => {
+      const cid = 'c:' + group.name + '|' + cls.name;
+      if (showClassBands) {
+        html.push(band('class', style, cid, cls.name || 'No asset class', cls.funds.flatMap(f => f.idxs)));
+        if (rebalCollapsed[cid]) return;
+      }
+      cls.funds.forEach((fund, n) => {
+        const stripe = n % 2 === 1;
+        if (fund.idxs.length === 1) { html.push(holdingRow(fund.idxs[0], false, stripe)); return; }
+        const fid = 'f:' + cls.name + '|' + fund.key;
+        html.push(`
+          <tr class="rb-fund${stripe ? ' rb-stripe' : ''}${rebalCollapsed[fid] ? ' collapsed' : ''}" data-agg="${escHtml(fid)}" data-band="${escHtml(fid)}" onclick="toggleRebalBand(this.dataset.band)">
+            <td><div class="rb-name" title="${escHtml(fund.row.desc)}"><span class="chevron">▾</span>${escHtml(fund.row.desc)}</div></td>
+            <td class="rb-sym">${fund.row.symbol && fund.row.symbol !== '—' ? escHtml(fund.row.symbol) : ''}</td>
+            ${figures(fid, fund.idxs, '')}
+            ${hasAccounts ? `<td class="cell-muted">${fund.idxs.length} accounts</td>` : ''}
+            <td></td><td></td>
+          </tr>`);
+        if (!rebalCollapsed[fid]) fund.idxs.forEach(i => html.push(holdingRow(i, true, stripe)));
+      });
+    });
   });
 
   // New positions
   const newPositions = state.rebalanceNew || [];
   if (newPositions.length) {
-    const sepRow = document.createElement('tr');
-    sepRow.innerHTML = `<td colspan="8" style="padding:5px 10px 3px;font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:#f8f5f0;border-top:2px dashed var(--border);">New Positions</td>`;
-    tbody.appendChild(sepRow);
+    html.push(`<tr class="rb-band rb-group rb-new"><td colspan="${colCount}">New Positions</td></tr>`);
     newPositions.forEach((pos, i) => {
-      totalTargetPct += pos.targetPct;
       const actionDollars = pos.targetPct / 100 * totalMV;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="padding:5px 10px;">
-          <div class="rebal-autocomplete-wrap">
-            <input type="text" class="rebal-new-input rebal-desc-input" placeholder="Fund name…" value="${escHtml(pos.desc)}"
-              autocomplete="off"
-              oninput="handleRebalDescInput(this,${i})"
-              onkeydown="handleRebalDescKey(event,this,${i})"
-              onblur="setTimeout(()=>closeRebalAutocomplete(this),150)">
-            <div class="rebal-autocomplete-list" id="rebal-ac-${i}"></div>
-          </div>
-        </td>
-        <td style="padding:5px 10px;" class="cell-ac">
-          <select class="ac-select" onchange="state.rebalanceNew[${i}].assetClass=this.value;">
-            <option value="">— Select —</option>
-            ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${pos.assetClass===o?' selected':''}>${o}</option>`).join('')}
-          </select>
-        </td>
-        <td class="r" style="color:var(--muted);">$0.00</td>
-        <td class="r" style="color:var(--muted);">0.00%</td>
-        <td class="r" style="padding-top:4px;padding-bottom:4px;">
-          <input class="rebal-input" type="number" step="0.1" min="0" max="100"
-            value="${pos.targetPct.toFixed(2)}"
-            data-nidx="${i}"
-            onchange="handleNewRebalInput(this)">
-        </td>
-        <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
-        <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
-        ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
-        <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
-        <td><input class="rebal-new-input" type="text" placeholder="e.g. Adding growth exposure — replacing MCD" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value" style="width:260px;"></td>
-      `;
-      tbody.appendChild(tr);
+      html.push(`
+        <tr class="rb-row">
+          <td>
+            <div class="rebal-autocomplete-wrap">
+              <input type="text" class="rebal-new-input rebal-desc-input" placeholder="Fund name…" value="${escHtml(pos.desc)}"
+                autocomplete="off"
+                oninput="handleRebalDescInput(this,${i})"
+                onkeydown="handleRebalDescKey(event,this,${i})"
+                onblur="setTimeout(()=>closeRebalAutocomplete(this),150)">
+              <div class="rebal-autocomplete-list" id="rebal-ac-${i}"></div>
+            </div>
+          </td>
+          <td class="rb-sym">
+            <select class="ac-select" onchange="state.rebalanceNew[${i}].assetClass=this.value;">
+              <option value="">— Asset class —</option>
+              ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${pos.assetClass===o?' selected':''}>${o}</option>`).join('')}
+            </select>
+          </td>
+          <td class="r" style="color:var(--muted);">$0.00</td>
+          <td class="r" style="color:var(--muted);">0.00%</td>
+          <td class="r">
+            <input class="rebal-input" type="number" step="0.1" min="0" max="100"
+              value="${pos.targetPct.toFixed(2)}"
+              data-nidx="${i}"
+              onchange="handleNewRebalInput(this)">
+          </td>
+          <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
+          <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
+          ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
+          <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
+          <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value"></td>
+        </tr>`);
     });
   }
 
-  const tfr = document.createElement('tr');
-  tfr.className = 'tfoot-row';
-  const tColor = Math.abs(totalTargetPct - 100) < 0.05 ? 'var(--success)' : totalTargetPct > 100 ? 'var(--danger)' : '#b45309';
-  tfr.innerHTML = `
-    <td colspan="3"><strong>Total</strong></td>
-    <td class="r">100.00%</td>
-    <td class="r" id="rebal-total-target" style="font-weight:600;color:${tColor}">${totalTargetPct.toFixed(2)}%</td>
-    <td></td><td></td>
-  `;
-  tbody.appendChild(tfr);
+  html.push(`
+    <tr class="tfoot-row">
+      <td colspan="3"><strong>Total</strong></td>
+      <td class="r">100.00%</td>
+      <td class="r" id="rebal-total-target" style="font-weight:600;"></td>
+      <td colspan="${colCount - 5}"></td>
+    </tr>`);
+  tbody.innerHTML = html.join('');
 
-  updateRebalStats(totalMV, totalTargetPct);
+  refreshRebalNumbers();
+  updateRebalStats();
 
   const notesEl = document.getElementById('rebal-notes');
   if (notesEl && notesEl.value !== state.rebalanceNotes) notesEl.value = state.rebalanceNotes || '';
+}
+
+function refreshRebalNumbers() {
+  const h = state.holdings || [];
+  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  document.querySelectorAll('#rebal-tbody tr[data-agg]').forEach(tr => {
+    const rows = (rebalAggs[tr.dataset.agg] || []).map(i => h[i]).filter(Boolean);
+    const current = rows.reduce((s, r) => s + r.mv / totalMV * 100, 0);
+    const target = rows.reduce((s, r) => s + rebalTarget(r, totalMV), 0);
+    const diff = target - current;
+    const dollars = diff / 100 * totalMV;
+    const targetCell = tr.querySelector('.rb-tgt');
+    if (targetCell) targetCell.textContent = target.toFixed(2) + '%';
+    const diffCell = tr.querySelector('.rb-diff');
+    diffCell.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%';
+    diffCell.className = 'r rb-diff ' + (Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg');
+    const dollarsEl = tr.querySelector('.rb-dollars');
+    dollarsEl.textContent = (dollars >= 0 ? '+' : '') + fmt$(dollars);
+    dollarsEl.className = 'rb-dollars ' + (Math.abs(dollars) < 1 ? '' : dollars > 0 ? 'pos' : 'neg');
+  });
 }
 
 // ── PROPOSAL ──
@@ -2623,34 +2763,8 @@ function handleRebalInput(input) {
   const key = input.dataset.rkey;
   const val = parseFloat(input.value);
   if (!isNaN(val) && val >= 0) state.rebalance[key] = val;
-
-  const h = state.holdings || [];
-  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
-  let totalTargetPct = 0;
-
-  h.forEach((row, i) => {
-    const rkey = holdingKey(row);
-    const currentPct = row.mv / totalMV * 100;
-    const targetPct = state.rebalance[rkey] !== undefined ? state.rebalance[rkey] : currentPct;
-    totalTargetPct += targetPct;
-    const diff = targetPct - currentPct;
-    const actionDollars = diff / 100 * totalMV;
-    const tr = document.querySelector(`#rebal-tbody tr:nth-child(${i + 1})`);
-    if (tr) {
-      const cells = tr.querySelectorAll('td');
-      if (cells[5]) {
-        cells[5].textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%';
-        cells[5].className = 'r ' + (Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg');
-      }
-      if (cells[6]) {
-        cells[6].textContent = (actionDollars >= 0 ? '+' : '') + fmt$(actionDollars);
-        cells[6].className = 'r ' + (Math.abs(actionDollars) < 1 ? '' : actionDollars > 0 ? 'pos' : 'neg');
-      }
-    }
-  });
-  (state.rebalanceNew || []).forEach(pos => { totalTargetPct += pos.targetPct; });
-
-  updateRebalStats(totalMV, totalTargetPct);
+  refreshRebalNumbers();
+  updateRebalStats();
 }
 
 // Finds the client's cash holding's rebalance key (same "desc|symbol" key used in state.rebalance).
