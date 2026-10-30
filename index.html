@@ -466,11 +466,25 @@ tr:hover .rebal-replace-btn { opacity: 1; }
 .rb-child .rb-name { padding-left: 28px; color: var(--muted); }
 .rb-sym { color: var(--muted); font-size: 0.76rem; white-space: nowrap; }
 #rebal-table .rb-class-select { margin-left: 6px; width: 110px; min-width: 0; }
-#rebal-table .rebal-new-input { width: 180px; }
+#rebal-table .rebal-new-input { width: 150px; }
 #rebal-table td:has(> .rebal-replace-btn) { position: relative; }
 #rebal-table .rebal-replace-btn { position: absolute; left: 100%; top: 50%; transform: translateY(-50%); margin-left: 2px; background: var(--white); z-index: 1; }
 #rebal-table .rebal-desc-input { width: 100%; }
 #rebal-table tbody tr.rb-row:hover td, #rebal-table tbody tr.rb-fund:hover td { background: var(--hover); }
+#rebal-table tbody tr.rb-newpos td { background: #fdf6e1; }
+#rebal-table tbody tr.rb-newpos:hover td { background: #faefcd; }
+#rebal-table tbody tr.rb-newpos td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.rb-new-cell { display: flex; align-items: center; gap: 8px; }
+.rb-new-cell .rebal-autocomplete-wrap { flex: 1; min-width: 180px; }
+#rebal-table .acct-select { width: 150px; }
+.rb-new-badge {
+  flex-shrink: 0; padding: 1px 7px; border-radius: 999px; background: var(--gold); color: var(--white);
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+#rebal-table .rb-new-class { width: 150px; }
+.rb-dim { color: var(--muted); }
+#rebal-table .rb-new-del { opacity: 0.55; margin-left: 6px; }
+#rebal-table .rb-new-del:hover { opacity: 1; }
 #rebal-table .rebal-new-input:not(.rebal-desc-input)::placeholder { color: transparent; }
 #rebal-table tr:hover .rebal-new-input::placeholder, #rebal-table .rebal-new-input:focus::placeholder { color: #c3c9d2; }
 
@@ -2326,15 +2340,20 @@ function rebalTarget(row, totalMV) {
 }
 
 // Group → asset class → fund → the fund's rows (one per account), in GROUP_MAP order.
-function buildRebalTree(h) {
+// New positions with an asset class sit in their class (cls.news holds their rebalanceNew indexes).
+function buildRebalTree(h, newPositions) {
   const classOrder = GROUP_MAP.flatMap(g => g.subs.flatMap(s => s.classes));
   const rank = name => { const i = classOrder.indexOf(name); return i === -1 ? classOrder.length : i; };
   const groups = [...GROUP_MAP.map(g => g.group), 'Unclassified'].map(name => ({ name, classes: [] }));
-  h.forEach((row, i) => {
-    const ac = row.assetClass || getAssetClass(row.symbol, row.desc) || '';
+  const classFor = ac => {
     const group = groups.find(g => g.name === rebalGroupOf(ac));
     let cls = group.classes.find(c => c.name === ac);
-    if (!cls) group.classes.push(cls = { name: ac, funds: [] });
+    if (!cls) group.classes.push(cls = { name: ac, funds: [], news: [] });
+    return cls;
+  };
+  newPositions.forEach((pos, n) => { if (pos.assetClass) classFor(pos.assetClass).news.push(n); });
+  h.forEach((row, i) => {
+    const cls = classFor(row.assetClass || getAssetClass(row.symbol, row.desc) || '');
     const fundKey = row.desc + '|' + row.symbol;
     let fund = cls.funds.find(f => f.key === fundKey);
     if (!fund) cls.funds.push(fund = { key: fundKey, row, idxs: [] });
@@ -2347,6 +2366,12 @@ function buildRebalTree(h) {
 function toggleRebalBand(id) {
   rebalCollapsed[id] = !rebalCollapsed[id];
   renderAdvisor();
+}
+
+function setNewPositionClass(i, assetClass) {
+  state.rebalanceNew[i].assetClass = assetClass;
+  renderAdvisor();
+  scheduleAutoSave();
 }
 
 function setRebalAssetClass(i, assetClass) {
@@ -2377,8 +2402,8 @@ function renderAdvisor() {
 
   const sumMV = idxs => idxs.reduce((s, i) => s + h[i].mv, 0);
   // Diff and $ cells are filled in by refreshRebalNumbers().
-  const figures = (id, idxs, targetHtml, extra = '') => {
-    rebalAggs[id] = idxs;
+  const figures = (id, idxs, targetHtml, extra = '', news = []) => {
+    rebalAggs[id] = { idxs, news };
     const mv = sumMV(idxs);
     return `<td class="r">${fmt$(mv)}</td>
       <td class="r">${(mv / totalMV * 100).toFixed(2)}%</td>
@@ -2386,10 +2411,10 @@ function renderAdvisor() {
       <td class="r rb-diff"></td>
       <td class="r"><span class="rb-dollars"></span>${extra}</td>`;
   };
-  const band = (kind, style, id, label, idxs) => `
+  const band = (kind, style, id, label, idxs, news) => `
     <tr class="rb-band rb-${kind} rb-${style}${rebalCollapsed[id] ? ' collapsed' : ''}" data-agg="${escHtml(id)}" data-band="${escHtml(id)}" onclick="toggleRebalBand(this.dataset.band)">
       <td colspan="2"><span class="chevron">▾</span>${escHtml(label)}</td>
-      ${figures(id, idxs, '')}
+      ${figures(id, idxs, '', '', news)}
       <td colspan="${colCount - 7}"></td>
     </tr>`;
   const holdingRow = (i, child, stripe) => {
@@ -2419,17 +2444,58 @@ function renderAdvisor() {
       </tr>`;
   };
 
-  buildRebalTree(h).forEach(group => {
+  const newPositions = state.rebalanceNew || [];
+  const newRow = i => {
+    const pos = newPositions[i];
+    const actionDollars = pos.targetPct / 100 * totalMV;
+    return `
+      <tr class="rb-row rb-newpos">
+        <td>
+          <div class="rb-new-cell">
+            <span class="rb-new-badge">New</span>
+            <div class="rebal-autocomplete-wrap">
+              <input type="text" class="rebal-new-input rebal-desc-input" placeholder="Fund name…" value="${escHtml(pos.desc)}"
+                autocomplete="off"
+                oninput="handleRebalDescInput(this,${i})"
+                onkeydown="handleRebalDescKey(event,this,${i})"
+                onblur="setTimeout(()=>closeRebalAutocomplete(this),150)">
+              <div class="rebal-autocomplete-list" id="rebal-ac-${i}"></div>
+            </div>
+          </div>
+        </td>
+        <td class="rb-sym">
+          <select class="ac-select rb-new-class" onchange="setNewPositionClass(${i},this.value)">
+            <option value="">— Asset class —</option>
+            ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${pos.assetClass===o?' selected':''}>${o}</option>`).join('')}
+          </select>
+        </td>
+        <td class="r rb-dim">$0.00</td>
+        <td class="r rb-dim">0.00%</td>
+        <td class="r">
+          <input class="rebal-input" type="number" step="0.1" min="0" max="100"
+            value="${pos.targetPct.toFixed(2)}"
+            data-nidx="${i}"
+            onchange="handleNewRebalInput(this)">
+        </td>
+        <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
+        <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span><button onclick="removeRebalPosition(${i})" class="rebal-del rb-new-del" title="Remove this new position">×</button></td>
+        ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
+        <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
+        <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value"></td>
+      </tr>`;
+  };
+
+  buildRebalTree(h, newPositions).forEach(group => {
     const style = REBAL_GROUP_STYLE[group.name] || 'other';
     const gid = 'g:' + group.name;
-    html.push(band('group', style, gid, group.name, group.classes.flatMap(c => c.funds.flatMap(f => f.idxs))));
+    html.push(band('group', style, gid, group.name, group.classes.flatMap(c => c.funds.flatMap(f => f.idxs)), group.classes.flatMap(c => c.news)));
     if (rebalCollapsed[gid]) return;
     // A sub-band only helps when the group has more than one asset class in it.
     const showClassBands = group.classes.length > 1;
     group.classes.forEach(cls => {
       const cid = 'c:' + group.name + '|' + cls.name;
       if (showClassBands) {
-        html.push(band('class', style, cid, cls.name || 'No asset class', cls.funds.flatMap(f => f.idxs)));
+        html.push(band('class', style, cid, cls.name || 'No asset class', cls.funds.flatMap(f => f.idxs), cls.news));
         if (rebalCollapsed[cid]) return;
       }
       cls.funds.forEach((fund, n) => {
@@ -2446,48 +2512,15 @@ function renderAdvisor() {
           </tr>`);
         if (!rebalCollapsed[fid]) fund.idxs.forEach(i => html.push(holdingRow(i, true, stripe)));
       });
+      cls.news.forEach(i => html.push(newRow(i)));
     });
   });
 
-  // New positions
-  const newPositions = state.rebalanceNew || [];
-  if (newPositions.length) {
-    html.push(`<tr class="rb-band rb-group rb-new"><td colspan="${colCount}">New Positions</td></tr>`);
-    newPositions.forEach((pos, i) => {
-      const actionDollars = pos.targetPct / 100 * totalMV;
-      html.push(`
-        <tr class="rb-row">
-          <td>
-            <div class="rebal-autocomplete-wrap">
-              <input type="text" class="rebal-new-input rebal-desc-input" placeholder="Fund name…" value="${escHtml(pos.desc)}"
-                autocomplete="off"
-                oninput="handleRebalDescInput(this,${i})"
-                onkeydown="handleRebalDescKey(event,this,${i})"
-                onblur="setTimeout(()=>closeRebalAutocomplete(this),150)">
-              <div class="rebal-autocomplete-list" id="rebal-ac-${i}"></div>
-            </div>
-          </td>
-          <td class="rb-sym">
-            <select class="ac-select" onchange="state.rebalanceNew[${i}].assetClass=this.value;">
-              <option value="">— Asset class —</option>
-              ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}"${pos.assetClass===o?' selected':''}>${o}</option>`).join('')}
-            </select>
-          </td>
-          <td class="r" style="color:var(--muted);">$0.00</td>
-          <td class="r" style="color:var(--muted);">0.00%</td>
-          <td class="r">
-            <input class="rebal-input" type="number" step="0.1" min="0" max="100"
-              value="${pos.targetPct.toFixed(2)}"
-              data-nidx="${i}"
-              onchange="handleNewRebalInput(this)">
-          </td>
-          <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
-          <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span>&nbsp;<button onclick="removeRebalPosition(${i})" class="rebal-del" title="Remove">×</button></td>
-          ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
-          <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
-          <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value"></td>
-        </tr>`);
-    });
+  // New positions still waiting for an asset class stay at the bottom until one is picked.
+  const unplaced = newPositions.map((pos, i) => i).filter(i => !newPositions[i].assetClass);
+  if (unplaced.length) {
+    html.push(`<tr class="rb-band rb-group rb-new"><td colspan="${colCount}">New Positions — pick an asset class to place them</td></tr>`);
+    unplaced.forEach(i => html.push(newRow(i)));
   }
 
   html.push(`
@@ -2510,9 +2543,11 @@ function refreshRebalNumbers() {
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
   document.querySelectorAll('#rebal-tbody tr[data-agg]').forEach(tr => {
-    const rows = (rebalAggs[tr.dataset.agg] || []).map(i => h[i]).filter(Boolean);
+    const agg = rebalAggs[tr.dataset.agg] || { idxs: [], news: [] };
+    const rows = agg.idxs.map(i => h[i]).filter(Boolean);
+    const added = agg.news.reduce((s, n) => s + (((state.rebalanceNew || [])[n] || {}).targetPct || 0), 0);
     const current = rows.reduce((s, r) => s + r.mv / totalMV * 100, 0);
-    const target = rows.reduce((s, r) => s + rebalTarget(r, totalMV), 0);
+    const target = rows.reduce((s, r) => s + rebalTarget(r, totalMV), 0) + added;
     const diff = target - current;
     const dollars = diff / 100 * totalMV;
     const targetCell = tr.querySelector('.rb-tgt');
@@ -2822,15 +2857,8 @@ function handleNewRebalInput(input) {
     actionSpan.textContent = (actionDollars >= 0 ? '+' : '') + fmt$(actionDollars);
     actionSpan.className = tPct > 0 ? 'pos' : '';
   }
-
-  let totalTargetPct = 0;
-  h.forEach(row => {
-    const key = holdingKey(row);
-    const currentPct = row.mv / totalMV * 100;
-    totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
-  });
-  (state.rebalanceNew || []).forEach(pos => { totalTargetPct += pos.targetPct; });
-  updateRebalStats(totalMV, totalTargetPct);
+  refreshRebalNumbers();
+  updateRebalStats();
 }
 
 // ── REBALANCER AUTOCOMPLETE ──
@@ -2906,14 +2934,18 @@ function handleRebalDescKey(event, input, idx) {
   }
 }
 
+function focusNewPosition(i) {
+  setTimeout(() => {
+    const list = document.getElementById('rebal-ac-' + i);
+    if (list) list.previousElementSibling.focus();
+  }, 30);
+}
+
 function addRebalPosition() {
   if (!state.rebalanceNew) state.rebalanceNew = [];
   state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0, fundedFromCash: false, cashFundedPct: 0 });
   renderAdvisor();
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('.rebal-desc-input');
-    if (inputs.length) inputs[inputs.length - 1].focus();
-  }, 30);
+  focusNewPosition(state.rebalanceNew.length - 1);
 }
 
 function removeRebalPosition(i) {
@@ -3782,10 +3814,7 @@ function replaceHolding(key, assetClass) {
   if (!state.rebalanceNew) state.rebalanceNew = [];
   state.rebalanceNew.push({ desc: '', assetClass: assetClass || '', targetPct: 0 });
   renderAdvisor();
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('.rebal-new-input');
-    if (inputs.length) inputs[inputs.length - 2].focus();
-  }, 30);
+  focusNewPosition(state.rebalanceNew.length - 1);
 }
 
 // ── AI CHAT ──
