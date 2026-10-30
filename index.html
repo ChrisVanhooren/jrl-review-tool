@@ -479,6 +479,8 @@ tr:hover .rebal-del { opacity: 1; }
 }
 .acct-chip.short { border-color: var(--danger); }
 .acct-chip.viewing { box-shadow: 0 0 0 2px var(--gold); background: var(--white); }
+.acct-chip .acct-line .pos, .acct-chip .acct-line .neg { font-variant-numeric: tabular-nums; }
+.acct-chip .acct-after { border-top: 1px solid var(--border); padding-top: 4px; }
 .rb-acct-link {
   background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: 0.78rem;
   color: var(--navy-mid); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 2px;
@@ -1113,7 +1115,7 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
             <th class="r">Difference</th>
             <th class="r">To Buy / Sell</th>
             <th id="rebal-acct-th" style="display:none;" title="Which account this fund is held in / this trade happens in">Account</th>
-            <th title="Fund a new position by reducing the client's cash target %">Cash</th>
+            <th title="Fund from cash: lowers the Cash Balance target % by the same amount so the total stays at 100%. It does not change account cash, which already counts every buy and sell.">Cash</th>
             <th>Advisor Notes</th>
           </tr></thead>
           <tbody id="rebal-tbody"></tbody>
@@ -2517,7 +2519,7 @@ function renderAdvisor() {
         <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
         <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span><button onclick="removeRebalPosition(${i})" class="rebal-del rb-new-del" title="Remove this new position">×</button></td>
         ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
-        <td style="text-align:center;"><input type="checkbox" title="Fund from cash" ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
+        <td style="text-align:center;"><input type="checkbox" title="Fund from cash — lowers the Cash Balance target % so the total stays at 100%. Account cash already counts this buy either way." ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
         <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value"></td>
       </tr>`;
   };
@@ -3096,10 +3098,12 @@ function computeAccountPlan() {
   });
 
   const balances = {};
-  accounts.forEach(a => { balances[a.id] = { start: a.cash || 0, end: a.cash || 0 }; });
+  accounts.forEach(a => { balances[a.id] = { start: a.cash || 0, end: a.cash || 0, sells: 0, buys: 0 }; });
   const placed = trades.filter(t => !t.isCash);
   placed.forEach(t => {
-    if (t.accountId) balances[t.accountId].end += t.side === 'sell' ? t.dollars : -t.dollars;
+    if (!t.accountId) return;
+    const b = balances[t.accountId];
+    if (t.side === 'sell') { b.sells += t.dollars; b.end += t.dollars; } else { b.buys += t.dollars; b.end -= t.dollars; }
   });
   placed.filter(t => t.side === 'buy' && !t.accountId)
     .sort((a, b) => b.dollars - a.dollars)
@@ -3108,6 +3112,7 @@ function computeAccountPlan() {
       if (!best) return;
       t.accountId = best.id;
       t.auto = true;
+      balances[best.id].buys += t.dollars;
       balances[best.id].end -= t.dollars;
     });
 
@@ -3138,7 +3143,10 @@ function renderAccounts() {
         <div class="acct-line"><span>Cash now</span>
           <input class="rebal-input" type="number" step="1" value="${(a.cash || 0).toFixed(2)}" onchange="setAccountCash(${i},this.value)" style="width:110px;">
         </div>
-        <div class="acct-line"><span>After trades</span><strong class="${b.end < -0.5 ? 'neg' : ''}">${fmt$(b.end)}</strong></div>
+        ${b.sells >= 0.5 || b.buys >= 0.5 ? `
+        <div class="acct-line"><span>+ Sells</span><span class="pos">${fmt$(b.sells)}</span></div>
+        <div class="acct-line"><span>− Buys</span><span class="neg">${fmt$(b.buys)}</span></div>` : ''}
+        <div class="acct-line acct-after"><span>After trades</span><strong class="${b.end < -0.5 ? 'neg' : ''}">${fmt$(b.end)}</strong></div>
         <button class="rb-acct-link acct-view-link" data-acct="${escHtml(a.id)}" onclick="setRebalView(${a.id === rebalView ? "''" : 'this.dataset.acct'})">${a.id === rebalView ? 'Viewing · show all' : 'View holdings →'}</button>
       </div>`;
   }).join('');
