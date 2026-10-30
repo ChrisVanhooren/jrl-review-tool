@@ -465,7 +465,11 @@ tr:hover .rebal-del { opacity: 1; }
 }
 #rebal-table .rb-new-class { width: 150px; }
 .rb-dim { color: var(--muted); }
-.rb-view-cash { font-weight: 400; color: var(--muted); margin-left: 6px; }
+#rebal-table tbody tr.rb-cash-row td { font-weight: 600; }
+#rebal-table tbody tr.rb-cash-row .rb-tgt { color: var(--navy-mid); }
+#rebal-table tbody tr.rb-cash-row .rb-tgt.neg { color: var(--danger); }
+.rb-cash-after { font-weight: 400; color: var(--muted); font-size: 0.78rem; }
+.rb-cash-after .neg { font-weight: 600; }
 #rebal-table .rb-new-del { opacity: 0.55; margin-left: 6px; }
 #rebal-table .rb-new-del:hover { opacity: 1; }
 #rebal-table .rebal-new-input:not(.rebal-desc-input)::placeholder { color: transparent; }
@@ -1115,7 +1119,6 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
             <th class="r">Difference</th>
             <th class="r">To Buy / Sell</th>
             <th id="rebal-acct-th" style="display:none;" title="Which account this fund is held in / this trade happens in">Account</th>
-            <th title="Fund from cash: lowers the Cash Balance target % by the same amount so the total stays at 100%. It does not change account cash, which already counts every buy and sell.">Cash</th>
             <th>Advisor Notes</th>
           </tr></thead>
           <tbody id="rebal-tbody"></tbody>
@@ -2360,14 +2363,23 @@ function rebalGroupOf(assetClass) {
   return g ? g.group : 'Unclassified';
 }
 
+// The client's cash has no target of its own: it's whatever the other targets leave behind
+// (cash now + sells − buys), so the targets always add up to 100%.
 function rebalTarget(row, totalMV) {
+  const cash = getCashHolding();
+  if (row === cash) {
+    let pct = cash.mv / totalMV * 100;
+    (state.holdings || []).forEach(r => { if (r !== cash) pct -= rebalTarget(r, totalMV) - r.mv / totalMV * 100; });
+    (state.rebalanceNew || []).forEach(p => { pct -= p.targetPct || 0; });
+    return pct;
+  }
   const key = holdingKey(row);
   return state.rebalance[key] !== undefined ? state.rebalance[key] : row.mv / totalMV * 100;
 }
 
 // Group → asset class → fund → the fund's rows (one per account), in GROUP_MAP order.
 // New positions with an asset class sit in their class (cls.news holds their rebalanceNew indexes).
-function buildRebalTree(h, newPositions, showHolding = () => true, showNew = () => true) {
+function buildRebalTree(h, newPositions, showHolding = () => true, showNew = () => true, forceCash = false) {
   const classOrder = GROUP_MAP.flatMap(g => g.subs.flatMap(s => s.classes));
   const rank = name => { const i = classOrder.indexOf(name); return i === -1 ? classOrder.length : i; };
   const groups = [...GROUP_MAP.map(g => g.group), 'Unclassified'].map(name => ({ name, classes: [] }));
@@ -2377,6 +2389,7 @@ function buildRebalTree(h, newPositions, showHolding = () => true, showNew = () 
     if (!cls) group.classes.push(cls = { name: ac, funds: [], news: [] });
     return cls;
   };
+  if (forceCash) classFor('Cash');
   newPositions.forEach((pos, n) => { if (pos.assetClass && showNew(n)) classFor(pos.assetClass).news.push(n); });
   h.forEach((row, i) => {
     if (!showHolding(i)) return;
@@ -2423,7 +2436,7 @@ function renderAdvisor() {
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
   const hasAccounts = (state.accounts || []).length > 0;
   document.getElementById('rebal-acct-th').style.display = hasAccounts ? '' : 'none';
-  const colCount = hasAccounts ? 10 : 9;
+  const colCount = hasAccounts ? 9 : 8;
   rebalAggs = {};
   const html = [];
 
@@ -2438,27 +2451,32 @@ function renderAdvisor() {
   const showNew = i => !rebalView || (state.rebalanceNew[i].account || (plan.byRef.get('n:' + i) || {}).accountId) === rebalView;
 
   const sumMV = idxs => idxs.reduce((s, i) => s + h[i].mv, 0);
+  // In an account view, rows that include the account's cash (cashAcct) add its balance before and after trades.
+  const acctCash = id => (findAccount(id) || {}).cash || 0;
   // Diff and $ cells are filled in by refreshRebalNumbers().
-  const figures = (id, idxs, targetHtml, extra = '', news = []) => {
-    rebalAggs[id] = { idxs, news };
-    const mv = sumMV(idxs);
+  const figures = (id, idxs, targetHtml, extra = '', news = [], cashAcct = null) => {
+    rebalAggs[id] = { idxs, news, cashAcct };
+    const mv = sumMV(idxs) + (cashAcct ? acctCash(cashAcct) : 0);
     return `<td class="r">${fmt$(mv)}</td>
       <td class="r">${(mv / totalMV * 100).toFixed(2)}%</td>
       <td class="r${targetHtml ? '' : ' rb-tgt'}">${targetHtml}</td>
       <td class="r rb-diff"></td>
       <td class="r"><span class="rb-dollars"></span>${extra}</td>`;
   };
-  const band = (kind, style, id, label, idxs, news) => `
+  const band = (kind, style, id, label, idxs, news, cashAcct) => `
     <tr class="rb-band rb-${kind} rb-${style}${rebalCollapsed[id] ? ' collapsed' : ''}" data-agg="${escHtml(id)}" data-band="${escHtml(id)}" onclick="toggleRebalBand(this.dataset.band)">
       <td colspan="2"><span class="chevron">▾</span>${escHtml(label)}</td>
-      ${figures(id, idxs, '', '', news)}
+      ${figures(id, idxs, '', '', news, cashAcct)}
       <td colspan="${colCount - 7}"></td>
     </tr>`;
   const acctLink = acct => acct.id === rebalView
     ? `<span class="cell-muted">${escHtml(acct.name)}</span>`
     : `<button class="rb-acct-link" data-acct="${escHtml(acct.id)}" onclick="setRebalView(this.dataset.acct)" title="Show only ${escHtml(acct.name)}">${escHtml(acct.name)}</button>`;
+  const cashHolding = getCashHolding();
+  const calcTitle = 'Calculated: cash now, plus sells, minus buys';
   const holdingRow = (i, child, stripe) => {
     const row = h[i];
+    const isCalcCash = row === cashHolding;
     const key = holdingKey(row);
     const assetClass = row.assetClass || getAssetClass(row.symbol, row.desc) || '';
     const acct = findAccount(row.account);
@@ -2470,15 +2488,14 @@ function renderAdvisor() {
         ${ASSET_CLASS_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
       </select>` : '';
     return `
-      <tr class="rb-row${child ? ' rb-child' : ''}${stripe ? ' rb-stripe' : ''}" data-agg="${escHtml('h:' + key)}" data-hkey="${escHtml(key)}" data-ac="${escHtml(assetClass)}">
+      <tr class="rb-row${child ? ' rb-child' : ''}${stripe ? ' rb-stripe' : ''}${isCalcCash ? ' rb-cash-row' : ''}"${isCalcCash ? ` title="${calcTitle}"` : ''} data-agg="${escHtml('h:' + key)}" data-hkey="${escHtml(key)}" data-ac="${escHtml(assetClass)}">
         <td><div class="rb-name" title="${escHtml(row.desc)}${acct ? ' · ' + escHtml(acct.name) : ''}">${child && acct ? acctLink(acct) : escHtml(name)}</div></td>
         <td class="rb-sym">${symbol}${classSelect}</td>
-        ${figures('h:' + key, [i], `<input class="rebal-input" type="number" step="0.1" min="0" max="100"
+        ${figures('h:' + key, [i], isCalcCash ? '' : `<input class="rebal-input" type="number" step="0.1" min="0" max="100"
           value="${rebalTarget(row, totalMV).toFixed(2)}" data-rkey="${escHtml(key)}" onchange="handleRebalInput(this)">`)}
-        ${hasAccounts ? `<td>${isCashRow(row) ? ''
+        ${hasAccounts ? `<td>${isCalcCash ? '<span class="rb-cash-after"></span>' : isCashRow(row) ? ''
           : acct ? acctLink(acct)
           : accountSelectHtml('h:' + key, holdingAccountId(row), `setHoldingAccount(${i},this.value)`)}</td>` : ''}
-        <td></td>
         <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml((state.rebalanceRowNotes||{})[key]||'')}" oninput="if(!state.rebalanceRowNotes)state.rebalanceRowNotes={};state.rebalanceRowNotes[this.closest('tr').dataset.hkey]=this.value"></td>
       </tr>`;
   };
@@ -2519,24 +2536,32 @@ function renderAdvisor() {
         <td class="r pos" data-new-diff="${i}">${pos.targetPct > 0 ? '+' : ''}${pos.targetPct.toFixed(2)}%</td>
         <td class="r"><span data-new-action="${i}" class="${pos.targetPct > 0 ? 'pos' : ''}">${pos.targetPct > 0 ? '+' : ''}${fmt$(actionDollars)}</span><button onclick="removeRebalPosition(${i})" class="rebal-del rb-new-del" title="Remove this new position">×</button></td>
         ${hasAccounts ? `<td>${accountSelectHtml('n:' + i, pos.account, `setNewPositionAccount(${i},this.value)`)}</td>` : ''}
-        <td style="text-align:center;"><input type="checkbox" title="Fund from cash — lowers the Cash Balance target % so the total stays at 100%. Account cash already counts this buy either way." ${pos.fundedFromCash ? 'checked' : ''} onchange="toggleRebalFundedFromCash(${i},this.checked)"></td>
         <td><input class="rebal-new-input" type="text" placeholder="Add a note…" value="${escHtml(pos.note||'')}" oninput="state.rebalanceNew[${i}].note=this.value"></td>
       </tr>`;
   };
 
-  buildRebalTree(h, newPositions, showHolding, showNew).forEach(group => {
+  buildRebalTree(h, newPositions, showHolding, showNew, !!rebalView).forEach(group => {
     const style = REBAL_GROUP_STYLE[group.name] || 'other';
     const gid = 'g:' + group.name;
-    html.push(band('group', style, gid, group.name, group.classes.flatMap(c => c.funds.flatMap(f => f.idxs)), group.classes.flatMap(c => c.news)));
+    const groupCash = rebalView && group.name === rebalGroupOf('Cash') ? rebalView : null;
+    html.push(band('group', style, gid, group.name, group.classes.flatMap(c => c.funds.flatMap(f => f.idxs)), group.classes.flatMap(c => c.news), groupCash));
     if (rebalCollapsed[gid]) return;
     // A sub-band only helps when the group has more than one asset class in it.
     const showClassBands = group.classes.length > 1;
     group.classes.forEach(cls => {
       const cid = 'c:' + group.name + '|' + cls.name;
+      const classCash = rebalView && cls.name === 'Cash' ? rebalView : null;
       if (showClassBands) {
-        html.push(band('class', style, cid, cls.name || 'No asset class', cls.funds.flatMap(f => f.idxs), cls.news));
+        html.push(band('class', style, cid, cls.name || 'No asset class', cls.funds.flatMap(f => f.idxs), cls.news, classCash));
         if (rebalCollapsed[cid]) return;
       }
+      if (classCash) html.push(`
+        <tr class="rb-row rb-cash-row" title="${calcTitle}" data-agg="acct-cash">
+          <td><div class="rb-name">Cash Balance</div></td>
+          <td class="rb-sym"></td>
+          ${figures('acct-cash', [], '', '', [], rebalView)}
+          <td><span class="rb-cash-after"></span></td><td></td>
+        </tr>`);
       cls.funds.forEach((fund, n) => {
         const stripe = n % 2 === 1;
         if (fund.idxs.length === 1) { html.push(holdingRow(fund.idxs[0], false, stripe)); return; }
@@ -2547,7 +2572,7 @@ function renderAdvisor() {
             <td class="rb-sym">${fund.row.symbol && fund.row.symbol !== '—' ? escHtml(fund.row.symbol) : ''}</td>
             ${figures(fid, fund.idxs, '')}
             ${hasAccounts ? `<td class="cell-muted">${fund.idxs.length} accounts</td>` : ''}
-            <td></td><td></td>
+            <td></td>
           </tr>`);
         if (!rebalCollapsed[fid]) fund.idxs.forEach(i => html.push(holdingRow(i, true, stripe)));
       });
@@ -2570,8 +2595,8 @@ function renderAdvisor() {
     }
     html.push(`
       <tr class="tfoot-row" data-agg="view-total">
-        <td colspan="2"><strong>${escHtml(findAccount(rebalView).name)} total</strong><span class="rb-view-cash" id="rb-view-cash"></span></td>
-        ${figures('view-total', visible, '', '', visibleNew)}
+        <td colspan="2"><strong>${escHtml(findAccount(rebalView).name)} total</strong></td>
+        ${figures('view-total', visible, '', '', visibleNew, rebalView)}
         <td colspan="${colCount - 7}"></td>
       </tr>`);
   } else {
@@ -2595,16 +2620,26 @@ function renderAdvisor() {
 function refreshRebalNumbers() {
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
+  const balances = rebalView ? computeAccountPlan().balances : {};
   document.querySelectorAll('#rebal-tbody tr[data-agg]').forEach(tr => {
     const agg = rebalAggs[tr.dataset.agg] || { idxs: [], news: [] };
     const rows = agg.idxs.map(i => h[i]).filter(Boolean);
     const added = agg.news.reduce((s, n) => s + (((state.rebalanceNew || [])[n] || {}).targetPct || 0), 0);
-    const current = rows.reduce((s, r) => s + r.mv / totalMV * 100, 0);
-    const target = rows.reduce((s, r) => s + rebalTarget(r, totalMV), 0) + added;
+    const cash = agg.cashAcct && balances[agg.cashAcct];
+    const current = rows.reduce((s, r) => s + r.mv / totalMV * 100, 0) + (cash ? cash.start / totalMV * 100 : 0);
+    const target = rows.reduce((s, r) => s + rebalTarget(r, totalMV), 0) + added + (cash ? cash.end / totalMV * 100 : 0);
     const diff = target - current;
     const dollars = diff / 100 * totalMV;
     const targetCell = tr.querySelector('.rb-tgt');
-    if (targetCell) targetCell.textContent = target.toFixed(2) + '%';
+    if (targetCell) {
+      targetCell.textContent = target.toFixed(2) + '%';
+      targetCell.classList.toggle('neg', tr.classList.contains('rb-cash-row') && target < -0.005);
+    }
+    const cashAfter = tr.querySelector('.rb-cash-after');
+    if (cashAfter) {
+      const after = target / 100 * totalMV;
+      cashAfter.innerHTML = `<span class="${after < -0.5 ? 'neg' : ''}">${fmt$(after)}</span> after trades`;
+    }
     const diffCell = tr.querySelector('.rb-diff');
     diffCell.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%';
     diffCell.className = 'r rb-diff ' + (Math.abs(diff) < 0.05 ? '' : diff > 0 ? 'pos' : 'neg');
@@ -2822,21 +2857,21 @@ function updateRebalStats(totalMV, totalTargetPct) {
     const h = state.holdings || [];
     totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
     totalTargetPct = 0;
-    h.forEach(row => {
-      const key = holdingKey(row);
-      const currentPct = row.mv / totalMV * 100;
-      totalTargetPct += state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
-    });
+    h.forEach(row => { totalTargetPct += rebalTarget(row, totalMV); });
     (state.rebalanceNew || []).forEach(pos => { totalTargetPct += pos.targetPct; });
   }
   const remaining = 100 - totalTargetPct;
+  const cash = getCashHolding();
+  const cashAfter = cash ? rebalTarget(cash, totalMV) / 100 * totalMV : 0;
   const allocColor = Math.abs(remaining) < 0.05 ? 'var(--success)' : Math.abs(remaining) < 5 ? '#b45309' : 'var(--danger)';
   const newCount = (state.rebalanceNew || []).length;
   const statsEl = document.getElementById('rebal-stats');
   if (statsEl) statsEl.innerHTML = `
     <div class="stat-card"><div class="lbl">Portfolio Market Value</div><div class="val">${fmt$(totalMV)}</div></div>
     <div class="stat-card"><div class="lbl">Total Allocated</div><div class="val" style="color:${allocColor}">${totalTargetPct.toFixed(2)}%</div></div>
-    <div class="stat-card"><div class="lbl">Remaining to Allocate</div><div class="val" style="color:${Math.abs(remaining) < 0.05 ? 'var(--success)' : 'var(--danger)'}">${remaining >= 0 ? '+' : ''}${remaining.toFixed(2)}%</div></div>
+    ${cash
+      ? `<div class="stat-card"><div class="lbl">Cash After Trades</div><div class="val ${cashAfter < -0.5 ? 'neg' : ''}">${fmt$(cashAfter)}</div></div>`
+      : `<div class="stat-card"><div class="lbl">Remaining to Allocate</div><div class="val" style="color:${Math.abs(remaining) < 0.05 ? 'var(--success)' : 'var(--danger)'}">${remaining >= 0 ? '+' : ''}${remaining.toFixed(2)}%</div></div>`}
     <div class="stat-card"><div class="lbl">New Positions</div><div class="val">${newCount}</div></div>
   `;
   const totalCell = document.getElementById('rebal-total-target');
@@ -2855,45 +2890,10 @@ function handleRebalInput(input) {
   updateRebalStats();
 }
 
-// Finds the client's cash holding's rebalance key (same "desc|symbol" key used in state.rebalance).
-function getCashRebalKey() {
-  const cash = getCashHolding();
-  return cash ? holdingKey(cash) : null;
-}
-
-// Reduces (or restores) the cash row's rebalance target % to fund a new position, tracked as a
-// delta via pos.cashFundedPct so repeated edits/toggles don't compound.
-function syncRebalCashFunding(i) {
-  const pos = state.rebalanceNew[i];
-  const cash = getCashHolding();
-  const cashKey = getCashRebalKey();
-  if (!pos || !cash || !cashKey) return;
-  const h = state.holdings || [];
-  const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
-  if (!state.rebalance) state.rebalance = {};
-  if (state.rebalance[cashKey] === undefined) state.rebalance[cashKey] = cash.mv / totalMV * 100;
-  const desired = pos.fundedFromCash ? (pos.targetPct || 0) : 0;
-  const delta = desired - (pos.cashFundedPct || 0);
-  state.rebalance[cashKey] = Math.max(0, state.rebalance[cashKey] - delta);
-  pos.cashFundedPct = desired;
-}
-
-function toggleRebalFundedFromCash(i, checked) {
-  state.rebalanceNew[i].fundedFromCash = checked;
-  syncRebalCashFunding(i);
-  renderAdvisor();
-}
-
 function handleNewRebalInput(input) {
   const i = parseInt(input.dataset.nidx);
   const val = parseFloat(input.value);
   if (!isNaN(val) && val >= 0) state.rebalanceNew[i].targetPct = val;
-
-  if (state.rebalanceNew[i].fundedFromCash) {
-    syncRebalCashFunding(i);
-    renderAdvisor();
-    return;
-  }
 
   const h = state.holdings || [];
   const totalMV = h.reduce((s, r) => s + r.mv, 0) || 1;
@@ -2996,17 +2996,12 @@ function focusNewPosition(i) {
 
 function addRebalPosition() {
   if (!state.rebalanceNew) state.rebalanceNew = [];
-  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0, fundedFromCash: false, cashFundedPct: 0, account: rebalView || null });
+  state.rebalanceNew.push({ desc: '', assetClass: '', targetPct: 0, account: rebalView || null });
   renderAdvisor();
   focusNewPosition(state.rebalanceNew.length - 1);
 }
 
 function removeRebalPosition(i) {
-  const pos = (state.rebalanceNew || [])[i];
-  if (pos && pos.fundedFromCash) {
-    pos.fundedFromCash = false;
-    syncRebalCashFunding(i);
-  }
   (state.rebalanceNew || []).splice(i, 1);
   renderAdvisor();
 }
@@ -3080,7 +3075,7 @@ function computeAccountPlan() {
   h.forEach(row => {
     const key = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
-    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+    const targetPct = rebalTarget(row, totalMV);
     const diff = targetPct - currentPct;
     if (Math.abs(diff) < THRESHOLD) return;
     const chosen = findAccount(holdingAccountId(row));
@@ -3166,9 +3161,6 @@ function renderAccounts() {
   body.style.display = '';
   body.innerHTML = `<div class="acct-list">${chips}</div>${warnings.map(w => `<div class="acct-warn">${w}</div>`).join('')}`;
 
-  const viewCash = document.getElementById('rb-view-cash');
-  const vb = plan.balances[rebalView];
-  if (viewCash && vb) viewCash.innerHTML = `· cash ${fmt$(vb.start)} → <span class="${vb.end < -0.5 ? 'neg' : ''}">${fmt$(vb.end)}</span> after trades`;
 
   // Keep each row's "—" option describing what will happen to that trade.
   document.querySelectorAll('#rebal-tbody select[data-acct-ref]').forEach(sel => {
@@ -3237,8 +3229,8 @@ function setNewPositionAccount(i, accountId) {
 function showTradeList() {
   const plan = computeAccountPlan();
   const accounts = state.accounts || [];
-  // With accounts set up, cash moves are shown as each account's balance rather than as trades.
-  const trades = accounts.length ? plan.trades.filter(t => !t.isCash) : plan.trades;
+  // Cash isn't a trade: it's what's left after the others, shown as a balance (per account when set up).
+  const trades = plan.trades.filter(t => !t.isCash);
   const sells  = trades.filter(t => t.side === 'sell');
   const buys   = trades.filter(t => t.side === 'buy' && !t.isNew);
   const newPos = trades.filter(t => t.isNew);
@@ -3292,6 +3284,12 @@ function showTradeList() {
       if (gBuys.length)  { html += sectionLabel('Buys', !gSells.length); gBuys.forEach(e => { html += entryRow(e); }); }
     });
   } else {
+    const cash = getCashHolding();
+    if (cash) {
+      const totalMV = (state.holdings || []).reduce((s, r) => s + r.mv, 0) || 1;
+      const after = rebalTarget(cash, totalMV) / 100 * totalMV;
+      html += `<div style="text-align:right;font-size:0.76rem;color:#64748b;margin-bottom:8px;">Cash ${fmt$(cash.mv)} → <strong style="color:${after < -0.5 ? '#dc2626' : '#0f1f3d'};">${fmt$(after)}</strong>${after < -0.5 ? ' — not enough cash' : ''}</div>`;
+    }
     if (sells.length) {
       html += sectionLabel('Sells', true);
       sells.sort((a,b) => a.diff - b.diff).forEach(e => { html += entryRow(e); });
@@ -3767,7 +3765,7 @@ function buildNewPortfolioRows() {
   h.forEach(row => {
     const key = holdingKey(row);
     const currentPct = row.mv / totalMV * 100;
-    const targetPct = state.rebalance[key] !== undefined ? state.rebalance[key] : currentPct;
+    const targetPct = rebalTarget(row, totalMV);
     if (targetPct <= 0.005) return; // sold out entirely
     const dollars = targetPct / 100 * totalMV;
     const assetClass = row.assetClass || row.cat || getAssetClass(row.symbol, row.desc) || 'Other';
