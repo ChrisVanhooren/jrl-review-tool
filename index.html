@@ -375,16 +375,8 @@ textarea.notes {
 .fp-kv .k { font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
 .fp-kv .v { font-weight: 600; font-size: 0.95rem; }
 
-/* ── EXPORT BTN ── */
-.export-bar {
-  position: sticky; bottom: 0;
-  background: rgba(255,255,255,0.96); border-top: 1px solid var(--border);
-  box-shadow: 0 -4px 12px rgba(15,23,42,0.04);
-  padding: 0.75rem 2.5rem;
-  display: flex; align-items: center; gap: 8px;
-}
-.export-bar .btn { height: 38px; padding: 0 18px; }
-.export-note { font-size: 0.78rem; color: var(--muted); margin-left: 8px; }
+/* ── EXPORT BTNS (tab bar) ── */
+.tab-export-btn { height: 32px; padding: 0 12px; font-size: 0.8rem; flex-shrink: 0; }
 
 /* ── ALLOC BARS ── */
 .alloc-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.82rem; }
@@ -633,14 +625,13 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
   .tab-bar { padding: 0.5rem 1rem; flex-wrap: nowrap; overflow-x: auto; top: 60px; }
   .topbar { padding: 0 1rem; }
   .logo span { display: none; }
-  .export-bar { padding: 0.75rem 1rem; flex-wrap: wrap; }
   .tab-content { padding: 1.25rem 1rem 3rem; }
   .nw-grid { grid-template-columns: 140px repeat(3, 1fr) 110px; }
 }
 
 /* ── PRINT ── */
 @media print {
-  .topbar, .tab-bar, .export-bar { display: none !important; }
+  .topbar, .tab-bar { display: none !important; }
   .tab-content { display: none !important; padding: 0; }
   #tab-3 { display: block !important; padding: 0; }
   #tab-3.tab-content { display: block !important; }
@@ -683,7 +674,18 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
   flex-direction: column;
   gap: 0.6rem;
 }
-.btn-new { width: 100%; }
+.btn-new { flex: 1; }
+.sidebar-top-row { display: flex; gap: 6px; }
+.sidebar-toggle {
+  width: var(--control-h); flex-shrink: 0; border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--white); color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.sidebar-toggle:hover { color: var(--navy); background: var(--hover); }
+.sidebar-show-btn { display: none; }
+.main-layout.sidebar-collapsed .sidebar { display: none; }
+.main-layout.sidebar-collapsed .sidebar-show-btn { display: flex; }
+.main-layout.sidebar-collapsed .tab-content { max-width: none; }
 .sidebar-search {
   width: 100%;
   height: var(--control-h);
@@ -793,7 +795,12 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
 <div class="main-layout">
   <div class="sidebar">
     <div class="sidebar-top">
-      <button class="btn btn-dark btn-new" onclick="newClient()">+ New Client</button>
+      <div class="sidebar-top-row">
+        <button class="btn btn-dark btn-new" onclick="newClient()">+ New Client</button>
+        <button class="sidebar-toggle" onclick="setSidebarCollapsed(true)" title="Hide client list">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
       <input class="sidebar-search" placeholder="Search clients…" oninput="debounceSearch(this.value)">
     </div>
     <div class="client-list" id="client-list">
@@ -805,6 +812,10 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
 <!-- APP SCREEN -->
 <div id="app-screen" style="display:block;">
   <div class="tab-bar">
+    <button class="btn btn-secondary tab-export-btn sidebar-show-btn" style="margin-right:6px;" onclick="setSidebarCollapsed(false)" title="Show client list">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Clients
+    </button>
     <button class="tab-btn active" onclick="switchTab(0)" id="tbtn-0"><span class="tab-dot"></span> Proposal</button>
     <button class="tab-btn" onclick="switchTab(1)" id="tbtn-1"><span class="tab-dot"></span> Implementation</button>
     <button class="tab-btn" onclick="switchTab(2)" id="tbtn-2"><span class="tab-dot"></span> Net Worth</button>
@@ -812,7 +823,15 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
     <button class="tab-btn filled" onclick="switchTab(4)" id="tbtn-4"><span class="tab-dot"></span> Monthly Returns</button>
     <button class="tab-btn" onclick="switchTab(5)" id="tbtn-5"><span class="tab-dot"></span> Final</button>
     <button class="tab-btn" onclick="switchTab(6)" id="tbtn-6"><span class="tab-dot"></span> Advisor Tool</button>
-    <button class="tab-gear-btn" onclick="toggleSettings()" title="Settings">
+    <button class="btn btn-secondary tab-export-btn" style="margin-left:auto;" onclick="exportExcel()" title="Push the data tabs to Excel">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Excel
+    </button>
+    <button class="btn btn-secondary tab-export-btn" onclick="downloadPDF()" id="btn-print" title="Save the Final report as a PDF">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Final PDF
+    </button>
+    <button class="tab-gear-btn" style="margin-left:4px;" onclick="toggleSettings()" title="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
     </button>
   </div>
@@ -1134,18 +1153,6 @@ td select.ac-select { width: 100%; max-width: 190px; font-size: 0.78rem; color: 
     </div>
   </div>
 
-  <!-- EXPORT BAR -->
-  <div class="export-bar">
-    <button class="btn btn-primary" onclick="exportExcel()">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Push to Excel
-    </button>
-    <button class="btn btn-dark" onclick="downloadPDF()" id="btn-print">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 6l4 4 4-4M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Save as PDF
-    </button>
-    <span class="export-note">Excel: data tabs | PDF: Final report</span>
-  </div>
 </div>
 
   </div><!-- end main-content -->
@@ -4917,6 +4924,13 @@ loadSettings().then(() => {
 
 // Load client list on startup
 loadClientList();
+
+// Hiding the client list gives the tabs the full width; remembered per browser.
+function setSidebarCollapsed(collapsed) {
+  document.querySelector('.main-layout').classList.toggle('sidebar-collapsed', collapsed);
+  try { localStorage.setItem('jrl_sidebar_collapsed', collapsed ? '1' : ''); } catch (_) {}
+}
+try { if (localStorage.getItem('jrl_sidebar_collapsed')) setSidebarCollapsed(true); } catch (_) {}
 
 // ── AGENT BUBBLE ──
 let _agentOpen = false;
